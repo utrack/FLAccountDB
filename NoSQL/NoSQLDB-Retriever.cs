@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
 using System.Data.SQLite;
 using System.Globalization;
@@ -8,27 +9,15 @@ using System.Linq;
 namespace FLAccountDB.NoSQL
 {
 
-    public enum RetrieveType
-    {
-        Full,
-        Name,
-        Account,
-        Equipment
-    }
-
     public partial class NoSQLDB
     {
-        private const string SelectGroupByName = "SELECT * FROM Accounts WHERE CharName IN (@CharNames)";
-        private const string SelectGroupByAccount = "SELECT * FROM Accounts WHERE AccID = '@AccID'";
-        private const string SelectGroupByItem = "SELECT * FROM Accounts WHERE Equipment LIKE '%@Equip%'";
-
 
         /// <summary>
         /// Executes the issued command and returns list of resulting acc metadata.
         /// </summary>
         /// <param name="command"></param>
         /// <returns></returns>
-        private List<Metadata> GetMeta(string command)
+        public List<Metadata> GetMeta(string command)
         {
             if (_conn == null) return null;
             if (_conn.State == ConnectionState.Closed) return null;
@@ -39,20 +28,20 @@ namespace FLAccountDB.NoSQL
                 var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
-                    var md = new Metadata
-                    {
-                        CharPath = reader.GetString(0),
-                        Name = reader.GetString(1),
-                        AccountID = reader.GetString(2),
-                        CharID = reader.GetString(3),
-                        Money = (uint)reader.GetInt32(4),
-                        Rank = (byte)reader.GetInt32(5),
-                        ShipArch = (uint)reader.GetInt32(6),
-                        System = reader.GetString(7),
-                        Base = reader.GetString(8),
-                        Equipment = reader.GetString(9),
-                        LastOnline = reader.GetDateTime(11)
-                    };
+                    var md = new Metadata();
+                    //{
+                    md.CharPath = reader.GetString(0);
+                    md.Name = reader.GetString(1);
+                    md.AccountID = reader.GetString(2);
+                    md.CharID = reader.GetString(3);
+                    md.Money = (uint) reader.GetInt32(4);
+                    md.Rank = (byte) reader.GetInt32(5);
+                    md.ShipArch = (uint) reader.GetInt32(6);
+                    md.System = reader.GetString(7);
+                    md.Base = reader.GetValue(8).ToString();
+                    md.Equipment = reader.GetString(9);
+                    md.LastOnline = reader.GetDateTime(11);
+                    //};
 
                     ret.Add(md);
                 }
@@ -62,45 +51,106 @@ namespace FLAccountDB.NoSQL
             return ret;
         }
 
-        public List<Metadata> GetAccountChars(string accID)
+        private bool _isGetBusy;
+        public event RequestReady OnGetFinish;
+        public event EventHandler OnGetFinishWindow;
+        public delegate void RequestReady(List<Metadata> meta); 
+        public int GetScalar(string command)
         {
-            return GetMeta(SelectGroupByAccount.Replace("@AccID", accID));
+            int count;
+            using (var cmd = new SQLiteCommand(_conn))
+            {
+                cmd.CommandText = command;
+                cmd.CommandType = CommandType.Text;
+
+
+                count = Convert.ToInt32(cmd.ExecuteScalar());
+            }
+            return count;
         }
 
-        public List<Metadata> GetMetasByItem(uint hash)
+
+        private const string SelectGroupByNames = "SELECT * FROM Accounts WHERE CharName IN (@CharNames)";
+        private const string SelectGroupByName = "SELECT * FROM Accounts WHERE CharName LIKE '%@CharName%'";
+        private const string SelectGroupByAccount = "SELECT * FROM Accounts WHERE AccID = '@AccID'";
+        private const string SelectGroupByItem = "SELECT * FROM Accounts WHERE Equipment LIKE '%@Equip%'";
+
+
+
+        public void GetAccountChars(string accID)
         {
-            return GetMeta(SelectGroupByItem.Replace("@Equip", hash.ToString(CultureInfo.InvariantCulture)));
+            accID = EscapeString(accID);
+            var bgw = new BackgroundWorker();
+            _isGetBusy = true;
+            bgw.RunWorkerCompleted += _bgw_RunWorkerCompleted;
+            bgw.DoWork += _bgw_DoWork;
+            bgw.RunWorkerAsync(SelectGroupByAccount.Replace("@AccID", accID));
+            //return GetMeta();
         }
 
-        public List<Metadata> GetMetasByNames(List<string> names)
+        void _bgw_DoWork(object sender, DoWorkEventArgs e)
         {
-            return GetMeta(
-                SelectGroupByName.
-                    Replace("@CharNames",
+            e.Result = GetMeta((string) e.Argument);
+        }
+
+        void _bgw_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            _isGetBusy = false;
+            if (OnGetFinish != null)
+                OnGetFinish((List<Metadata>)e.Result);
+
+            if (OnGetFinishWindow != null)
+                OnGetFinishWindow(null, null);
+        }
+
+        public void GetMetasByItem(uint hash)
+        {
+            var bgw = new BackgroundWorker();
+            _isGetBusy = true;
+            bgw.RunWorkerCompleted += _bgw_RunWorkerCompleted;
+            bgw.DoWork += _bgw_DoWork;
+            bgw.RunWorkerAsync(
+                SelectGroupByItem.Replace("@Equip", hash.ToString(CultureInfo.InvariantCulture))
+                );
+        }
+
+        public void GetMetasByNames(List<string> names)
+        {
+            var str = SelectGroupByNames.
+                Replace("@CharNames",
                     string.Join(
-                        ",", 
+                        ",",
                         names.Select(
-                            w => 
-                            "'" + EscapeString(w) + "'")
-                               )
-                           )
-                          );
+                            w =>
+                                "'" + EscapeString(w) + "'")
+                        )
+                );
+
+            var bgw = new BackgroundWorker();
+            _isGetBusy = true;
+            bgw.RunWorkerCompleted += _bgw_RunWorkerCompleted;
+            bgw.DoWork += _bgw_DoWork;
+            bgw.RunWorkerAsync(str);
+        }
+
+        public void GetMetasByName(string name)
+        {
+            name = EscapeString(name);
+            var bgw = new BackgroundWorker();
+            _isGetBusy = true;
+            bgw.RunWorkerCompleted += _bgw_RunWorkerCompleted;
+            bgw.DoWork += _bgw_DoWork;
+            bgw.RunWorkerAsync(SelectGroupByName.Replace("@CharName", name));
+            //return GetMeta();
         }
 
         public int CountRows(string table)
         {
-            int rowCount;
-            using (var cmd = new SQLiteCommand(_conn))
-            {
-                cmd.CommandText = "select count(CharName) from '" + table +"';";
-                cmd.CommandType = CommandType.Text;
-                
-
-                rowCount = Convert.ToInt32(cmd.ExecuteScalar());
-            }
-            return rowCount;
-
+            return GetScalar("select count(CharName) from '" + table + "';");
         }
 
     }
+
+
+
 }

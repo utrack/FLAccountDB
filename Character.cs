@@ -21,7 +21,7 @@ namespace FLAccountDB
         public List<uint> VisitedSystems = new List<uint>();
 
         public float Health;
-        public Dictionary<uint, uint> Cargo = new Dictionary<uint, uint>();
+        public List<Tuple<uint, uint>> Cargo = new List<Tuple<uint, uint>>();
         
         /// <summary>
         /// Stores player's equipment. Tuple: ID, Hardpoint name, Health

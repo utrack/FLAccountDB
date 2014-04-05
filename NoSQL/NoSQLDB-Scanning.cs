@@ -232,7 +232,6 @@ namespace FLAccountDB.NoSQL
         {
             //var accountID = AccountRetriever.GetAccountID(path);
             var accountID = path.Substring(path.Length - 11);
-            var isBanned = File.Exists(path + Path.DirectorySeparatorChar + "banned");
             var charFiles = Directory.GetFiles(path, "??-????????.fl");
 
             //remove the account dir if there's no charfiles

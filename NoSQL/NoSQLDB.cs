@@ -22,6 +22,7 @@ namespace FLAccountDB.NoSQL
         /// <param name="accPath">Path to accounts' directory.</param>
         public NoSQLDB(string dbPath, string accPath)
         {
+            //Retriever = new MetaRetriever(this);
             AccPath = accPath;
 
             if (!File.Exists(dbPath))
@@ -114,7 +115,7 @@ namespace FLAccountDB.NoSQL
         #endregion
 
 
-        private static string EscapeString(string str)
+        public static string EscapeString(string str)
         {
             return str.Replace("'", "''");
         }

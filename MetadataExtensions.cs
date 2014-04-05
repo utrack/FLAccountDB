@@ -3,14 +3,19 @@ using FLAccountDB.NoSQL;
 
 namespace FLAccountDB
 {
-    static class MetadataExtensions
+    public static class MetadataExtensions
     {
 
         public static Character GetCharacter(this Metadata md, string pathToAccDir)
         {
-            return AccountRetriever.GetAccount(Path.Combine(pathToAccDir, md.CharPath));
+            return AccountRetriever.GetAccount(Path.Combine(pathToAccDir, md.CharPath + ".fl"));
         }
 
+
+        public static bool SaveCharacter(this Character ch, string pathToAccDir)
+        {
+            return AccountRetriever.SaveCharacter(ch,Path.Combine(pathToAccDir, ch.CharPath + ".fl"));
+        }
 
         
     }

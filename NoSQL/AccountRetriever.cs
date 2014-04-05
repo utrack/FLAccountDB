@@ -1,12 +1,17 @@
 ﻿using System;
+using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Text;
+using FLDataFile;
 using LogDispatcher;
 
 namespace FLAccountDB.NoSQL
 {
     static class AccountRetriever
     {
-
+        private static NumberFormatInfo _nfi = new NumberFormatInfo
+        {NumberDecimalSeparator = "."};
         /// <summary>
         /// Returns a Player object associated with the charfile.
         /// </summary>
@@ -38,10 +43,13 @@ namespace FLAccountDB.NoSQL
                             break;
                         case "house":
                             player.Reputation.Add(
-                                set[1],float.Parse(set[0]));
+                                set[1],float.Parse(set[0],_nfi));
                             break;
                         case "description":
                         case "tstamp":
+                            long high = uint.Parse(set[0]);
+                            long low = uint.Parse(set[1]);
+                            player.LastOnline = DateTime.FromFileTimeUtc(high << 32 | low);
                             break;
                         case "rep_group":
                             player.ReputationIFF = set[0];
@@ -56,19 +64,19 @@ namespace FLAccountDB.NoSQL
                             player.ShipArch = uint.Parse(set[0]);
                             break;
                         case "hull_status":
-                            player.Health = float.Parse(set[0]);
+                            player.Health = float.Parse(set[0], _nfi);
                             break;
                         case "equip":
                             player.EquipmentList.Add(
                                 new Tuple<uint, string, float>(
                                     uint.Parse(set[0]),
                                     set[1],
-                                    float.Parse(set[2])
+                                    float.Parse(set[2], _nfi)
                                     )
                                     );
                             break;
                         case "cargo":
-                            player.Cargo.Add(uint.Parse(set[0]), uint.Parse(set[1]));
+                            player.Cargo.Add(new Tuple<uint, uint>(uint.Parse(set[0]), uint.Parse(set[1])));
                             break;
                         case "last_base":
                             player.LastBase = set[0];
@@ -77,17 +85,17 @@ namespace FLAccountDB.NoSQL
                         case "pos":
                             player.Position = new[]
                             {
-                                float.Parse(set[0]),
-                                float.Parse(set[1]),
-                                float.Parse(set[2])
+                                float.Parse(set[0],_nfi),
+                                float.Parse(set[1],_nfi),
+                                float.Parse(set[2],_nfi)
                             };
                             break;
                         case "rotate":
                             player.Rotation = new[]
                             {
-                                float.Parse(set[0]),
-                                float.Parse(set[1]),
-                                float.Parse(set[2])
+                                float.Parse(set[0],_nfi),
+                                float.Parse(set[1],_nfi),
+                                float.Parse(set[2],_nfi)
                             };
                             break;
                         case "visit":
@@ -189,7 +197,32 @@ namespace FLAccountDB.NoSQL
             return player;
         }
 
+        public static bool SaveCharacter(Character ch, string path)
+        {
+            var oldFile = new DataFile(path);
+            var pSect = oldFile.GetFirstOf("Player");
 
+            //TODO: name
+            pSect.GetFirstOf("money")[0] = ch.Money.ToString(CultureInfo.InvariantCulture);
+            pSect.GetFirstOf("rank")[0] = ch.Rank.ToString(CultureInfo.InvariantCulture);
+            pSect.Settings.RemoveAll(w => w.Name == "house");
+
+            foreach (var set in ch.Reputation.Select(rep => new Setting("house")
+            {
+                String.Format(_nfi, "{0:0.000;-0.000}", rep.Value), 
+                rep.Key
+            }))
+            {
+                pSect.Settings.Add(set);
+            }
+
+            pSect.GetFirstOf("system")[0] = ch.System;
+            pSect.GetFirstOf("base")[0] = ch.Base;
+            pSect.GetFirstOf("ship_archetype")[0] = ch.ShipArch.ToString(CultureInfo.InvariantCulture);
+
+
+            return true;
+        }
 
         //public static string GetAccountID(string accDirPath)
         //{
