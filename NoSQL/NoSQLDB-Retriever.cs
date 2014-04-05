@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
+using System.Globalization;
 using System.Linq;
 
 namespace FLAccountDB.NoSQL
@@ -19,7 +20,7 @@ namespace FLAccountDB.NoSQL
     {
         private const string SelectGroupByName = "SELECT * FROM Accounts WHERE CharName IN (@CharNames)";
         private const string SelectGroupByAccount = "SELECT * FROM Accounts WHERE AccID = '@AccID'";
-
+        private const string SelectGroupByItem = "SELECT * FROM Accounts WHERE Equipment LIKE '%@Equip%'";
 
 
         /// <summary>
@@ -66,7 +67,12 @@ namespace FLAccountDB.NoSQL
             return GetMeta(SelectGroupByAccount.Replace("@AccID", accID));
         }
 
-        public List<Metadata> GetCharsByNames(List<string> names)
+        public List<Metadata> GetMetasByItem(uint hash)
+        {
+            return GetMeta(SelectGroupByItem.Replace("@Equip", hash.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        public List<Metadata> GetMetasByNames(List<string> names)
         {
             return GetMeta(
                 SelectGroupByName.
