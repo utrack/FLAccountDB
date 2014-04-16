@@ -135,7 +135,7 @@ namespace FLAccountDB.NoSQL
         /// </summary>
         /// <param name="path"></param>
         /// <returns></returns>
-        public static Metadata GetMeta(string path)
+        public static Metadata GetMeta(string path, LogDispatcher.LogDispatcher log)
         {
             var flFile = new DataFile(path);
             var player = new Metadata
@@ -177,7 +177,8 @@ namespace FLAccountDB.NoSQL
                             player.ShipArch = res;
                             break;
                         }
-                        LogDispatcher.LogDispatcher.NewMessage(LogType.Warning,"Garbage shiparch: " + set[0] + " for " + flFile.Path);
+                        if (log != null)
+                            log.NewMessage(LogType.Warning,"Garbage shiparch: " + set[0] + " for " + flFile.Path);
 
                         return null;
 

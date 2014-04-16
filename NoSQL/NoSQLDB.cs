@@ -14,14 +14,16 @@ namespace FLAccountDB.NoSQL
         public readonly DBQueue Queue;
         public readonly string AccPath;
         private bool _closePending;
+        private readonly LogDispatcher.LogDispatcher _log;
         #region "Database initiation"
         /// <summary>
         /// Initiate the legacy NoSQL Freelancer storage.
         /// </summary>
         /// <param name="dbPath">Path to the SQLite database file. DB will be created if file is nonexistent.</param>
         /// <param name="accPath">Path to accounts' directory.</param>
-        public NoSQLDB(string dbPath, string accPath)
+        public NoSQLDB(string dbPath, string accPath, LogDispatcher.LogDispatcher log)
         {
+            _log = log;
             //Retriever = new MetaRetriever(this);
             AccPath = accPath;
 
@@ -35,15 +37,13 @@ namespace FLAccountDB.NoSQL
                     DataSource = dbPath
                 };
                 _conn.ConnectionString = conString.ToString();
-                using (_conn)
-                    {
                     try
                     {
                         _conn.Open();
                     }
                     catch (Exception e)
                     {
-                        LogDispatcher.LogDispatcher.NewMessage(LogType.Fatal, "Can't connect to new data base. Reason: " + e.Message);
+                        _log.NewMessage(LogType.Fatal, "NoSQLDB: Can't connect to new player DB. Reason: " + e.Message);
                         throw;
                     }
  
@@ -66,8 +66,9 @@ namespace FLAccountDB.NoSQL
                     createDataBase.ExecuteNonQuery();
                     createDataBase.CommandText = "CREATE INDEX CharLookup ON Accounts(CharName ASC)";
                     createDataBase.ExecuteNonQuery();
-                    LogDispatcher.LogDispatcher.NewMessage(LogType.Info,"Created new database");
-                    }
+                    _conn.Close();
+                    _log.NewMessage(LogType.Warning, "Created new player DB.");
+                    
             }
 
             // Base created fo sho
@@ -75,7 +76,8 @@ namespace FLAccountDB.NoSQL
             var cs = new SQLiteConnectionStringBuilder {DataSource = dbPath};
             _conn.ConnectionString = cs.ToString();
             _conn.Open();
-            Queue = new DBQueue(_conn);
+            _log.NewMessage(LogType.Info, "NoSQLDB: Connected.");
+            Queue = new DBQueue(_conn,_log);
         }
 
         public void CloseDB()

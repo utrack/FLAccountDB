@@ -195,7 +195,7 @@ namespace FLAccountDB.NoSQL
             var enumerable = accDirs as IList<string> ?? accDirs.ToList();
 
 
-            LogDispatcher.LogDispatcher.NewMessage(LogType.Info,
+            _log.NewMessage(LogType.Info,
                 "Update: found " + enumerable.Count() + " changed accounts.");
 
             if (StateChanged != null)
@@ -240,7 +240,7 @@ namespace FLAccountDB.NoSQL
             var dbChars = GetCharCodesByAccount(accountID);
 
             using (var comm = new SQLiteCommand(InsertText, Queue.Conn))
-                foreach (var md in charFiles.Select(AccountRetriever.GetMeta).Where(md => md != null))
+                foreach (var md in charFiles.Select(w => AccountRetriever.GetMeta(w,_log)).Where(md => md != null))
                 {
                     comm.Parameters.AddWithValue("@CharPath", md.CharPath);
                     comm.Parameters.AddWithValue("@CharName", md.Name);

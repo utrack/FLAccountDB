@@ -20,9 +20,9 @@ namespace FLAccountDB
 
         public string CharPath;
 
-        public static Metadata ParseMeta(string path)
+        public static Metadata ParseMeta(string path, LogDispatcher.LogDispatcher log)
         {
-            return AccountRetriever.GetMeta(path);
+            return AccountRetriever.GetMeta(path,log);
         }
 
 

@@ -13,8 +13,11 @@ namespace FLAccountDB
 
         private int _threshold;
         private readonly Timer _timer;
-        public DBQueue(SQLiteConnection conn, int timeout = 15000, int threshold = 1000)
+
+        private readonly LogDispatcher.LogDispatcher _log;
+        public DBQueue(SQLiteConnection conn,LogDispatcher.LogDispatcher log, int timeout = 15000, int threshold = 1000)
         {
+            _log = log;
             _threshold = threshold;
             Conn = conn;
             
@@ -67,7 +70,7 @@ namespace FLAccountDB
                 {
                     if (Transaction != null)
                     {
-                        LogDispatcher.LogDispatcher.NewMessage(LogType.Garbage, "DB Committed, changes: " + Count);
+                        _log.NewMessage(LogType.Garbage, "DBQueue: Committed, changes: " + Count);
                         Transaction.Commit();
                         Transaction = Conn.BeginTransaction();
                     }

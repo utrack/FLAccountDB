@@ -5,6 +5,7 @@ using System.Data;
 using System.Data.SQLite;
 using System.Globalization;
 using System.Linq;
+using LogDispatcher;
 
 namespace FLAccountDB.NoSQL
 {
@@ -19,6 +20,7 @@ namespace FLAccountDB.NoSQL
         /// <returns></returns>
         public List<Metadata> GetMeta(string command)
         {
+            _log.NewMessage(LogType.Debug, "GetMeta Query: {0}",command);
             if (_conn == null) return null;
             if (_conn.State == ConnectionState.Closed) return null;
             var ret = new List<Metadata>();
@@ -56,6 +58,7 @@ namespace FLAccountDB.NoSQL
         public delegate void RequestReady(List<Metadata> meta); 
         public int GetScalar(string command)
         {
+            _log.NewMessage(LogType.Debug, "GetScalar Query: {0}", command);
             int count;
             using (var cmd = new SQLiteCommand(_conn))
             {
