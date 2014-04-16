@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Text;
 using FLDataFile;
@@ -10,7 +9,7 @@ namespace FLAccountDB.NoSQL
 {
     static class AccountRetriever
     {
-        private static NumberFormatInfo _nfi = new NumberFormatInfo
+        private static readonly NumberFormatInfo Nfi = new NumberFormatInfo
         {NumberDecimalSeparator = "."};
         /// <summary>
         /// Returns a Player object associated with the charfile.
@@ -19,7 +18,7 @@ namespace FLAccountDB.NoSQL
         /// <returns></returns>
         public static Character GetAccount(string path)
         {
-            var flFile = new FLDataFile.DataFile(path);
+            var flFile = new DataFile(path);
             var player = new Character();
 
             foreach (var set in flFile.GetFirstOf("Player").Settings)
@@ -43,9 +42,12 @@ namespace FLAccountDB.NoSQL
                             break;
                         case "house":
                             player.Reputation.Add(
-                                set[1],float.Parse(set[0],_nfi));
+                                new ReputationItem(set[1],
+                                    float.Parse(set[0], Nfi))
+                                );
                             break;
                         case "description":
+                            break;
                         case "tstamp":
                             long high = uint.Parse(set[0]);
                             long low = uint.Parse(set[1]);
@@ -63,20 +65,20 @@ namespace FLAccountDB.NoSQL
                         case "ship_archetype":
                             player.ShipArch = uint.Parse(set[0]);
                             break;
-                        case "hull_status":
-                            player.Health = float.Parse(set[0], _nfi);
+                        case "base_hull_status":
+                            player.Health = float.Parse(set[0], Nfi);
                             break;
                         case "equip":
                             player.EquipmentList.Add(
                                 new Tuple<uint, string, float>(
                                     uint.Parse(set[0]),
                                     set[1],
-                                    float.Parse(set[2], _nfi)
+                                    float.Parse(set[2], Nfi)
                                     )
                                     );
                             break;
                         case "cargo":
-                            player.Cargo.Add(new Tuple<uint, uint>(uint.Parse(set[0]), uint.Parse(set[1])));
+                            player.Cargo.Add(new WTuple<uint, uint>(uint.Parse(set[0]), uint.Parse(set[1])));
                             break;
                         case "last_base":
                             player.LastBase = set[0];
@@ -85,17 +87,17 @@ namespace FLAccountDB.NoSQL
                         case "pos":
                             player.Position = new[]
                             {
-                                float.Parse(set[0],_nfi),
-                                float.Parse(set[1],_nfi),
-                                float.Parse(set[2],_nfi)
+                                float.Parse(set[0],Nfi),
+                                float.Parse(set[1],Nfi),
+                                float.Parse(set[2],Nfi)
                             };
                             break;
                         case "rotate":
                             player.Rotation = new[]
                             {
-                                float.Parse(set[0],_nfi),
-                                float.Parse(set[1],_nfi),
-                                float.Parse(set[2],_nfi)
+                                float.Parse(set[0],Nfi),
+                                float.Parse(set[1],Nfi),
+                                float.Parse(set[2],Nfi)
                             };
                             break;
                         case "visit":
@@ -132,7 +134,7 @@ namespace FLAccountDB.NoSQL
         /// <returns></returns>
         public static Metadata GetMeta(string path)
         {
-            var flFile = new FLDataFile.DataFile(path);
+            var flFile = new DataFile(path);
             var player = new Metadata
             {
                 LastOnline = DateTime.Now
@@ -200,25 +202,160 @@ namespace FLAccountDB.NoSQL
         public static bool SaveCharacter(Character ch, string path)
         {
             var oldFile = new DataFile(path);
-            var pSect = oldFile.GetFirstOf("Player");
+            var newFile = new DataFile();
+            newFile.Sections.Add(new Section("Player"));
+            var pSect = newFile.GetFirstOf("Player");
 
+            pSect.Settings.Add(new Setting("description")
+            {
+                oldFile.GetSetting("Player", "description")[0]
+            });
+
+
+            
+
+            pSect.Settings.Add(new Setting("tstamp")
+            {
+                ((ch.LastOnline.ToFileTime() >> 32) & 0xFFFFFFFF).ToString(CultureInfo.InvariantCulture),
+                (ch.LastOnline.ToFileTime() & 0xFFFFFFFF).ToString(CultureInfo.InvariantCulture)
+            });
             //TODO: name
-            pSect.GetFirstOf("money")[0] = ch.Money.ToString(CultureInfo.InvariantCulture);
-            pSect.GetFirstOf("rank")[0] = ch.Rank.ToString(CultureInfo.InvariantCulture);
-            pSect.Settings.RemoveAll(w => w.Name == "house");
+            //pSect.Settings.Add(new Setting("money")
+            //{
+            //    ch.Money.ToString(CultureInfo.InvariantCulture)
+            //});
+
+            pSect.Settings.Add(new Setting("rank")
+            {
+                ch.Rank.ToString(CultureInfo.InvariantCulture)
+            });
 
             foreach (var set in ch.Reputation.Select(rep => new Setting("house")
             {
-                String.Format(_nfi, "{0:0.000;-0.000}", rep.Value), 
-                rep.Key
+                String.Format(Nfi, "{0:0.000;-0.000}", rep.Value), 
+                rep.Nickname
             }))
             {
                 pSect.Settings.Add(set);
             }
 
-            pSect.GetFirstOf("system")[0] = ch.System;
-            pSect.GetFirstOf("base")[0] = ch.Base;
-            pSect.GetFirstOf("ship_archetype")[0] = ch.ShipArch.ToString(CultureInfo.InvariantCulture);
+            pSect.Settings.Add(new Setting("rep_group")
+            {
+                ch.ReputationIFF
+            });
+
+            pSect.Settings.Add(new Setting("money")
+            {
+                ch.Money.ToString(CultureInfo.InvariantCulture)
+            });
+
+            pSect.Settings.Add(oldFile.GetSetting("Player","num_kills"));
+            pSect.Settings.Add(oldFile.GetSetting("Player", "num_misn_successes"));
+            pSect.Settings.Add(oldFile.GetSetting("Player", "num_misn_failures"));
+
+            pSect.Settings.Add(oldFile.GetSetting("Player", "voice"));
+            pSect.Settings.Add(oldFile.GetSetting("Player", "com_body"));
+            pSect.Settings.Add(oldFile.GetSetting("Player", "com_head"));
+            pSect.Settings.Add(oldFile.GetSetting("Player", "com_lefthand"));
+            pSect.Settings.Add(oldFile.GetSetting("Player", "com_righthand"));
+
+            pSect.Settings.Add(oldFile.GetSetting("Player", "body"));
+            pSect.Settings.Add(oldFile.GetSetting("Player", "head"));
+            pSect.Settings.Add(oldFile.GetSetting("Player", "lefthand"));
+            pSect.Settings.Add(oldFile.GetSetting("Player", "righthand"));
+
+
+            //TODO: position if in space
+            pSect.Settings.Add(new Setting("system")
+            {
+                ch.System
+            });
+            pSect.Settings.Add(new Setting("base")
+            {
+                ch.Base
+            });
+            pSect.Settings.Add(new Setting("ship_archetype")
+            {
+                ch.ShipArch.ToString(CultureInfo.InvariantCulture)
+            });
+
+            foreach (var eq in ch.EquipmentList)
+            {
+                pSect.Settings.Add(new Setting("equip")
+            {
+                eq.Item1.ToString(CultureInfo.InvariantCulture),eq.Item2,String.Format(Nfi, "{0:0.00}", eq.Item3)
+            });
+
+            }
+
+            foreach (var cg in ch.Cargo)
+            {
+                pSect.Settings.Add(new Setting("cargo")
+            {
+                cg.Item1.ToString(CultureInfo.InvariantCulture),
+                cg.Item2.ToString(CultureInfo.InvariantCulture),
+                "",
+                "",
+                "0"
+            });
+
+            }
+
+            pSect.Settings.Add(new Setting("last_base")
+            {
+                ch.LastBase
+            });
+
+            // base_hull_status
+
+            pSect.Settings.Add(new Setting("base_hull_status")
+            {
+                String.Format(Nfi, "{0:0.00}", ch.Health)
+            });
+
+            //todo: base_collision_group
+
+
+            foreach (var eq in ch.EquipmentList)
+            {
+                pSect.Settings.Add(new Setting("base_equip")
+            {
+                eq.Item1.ToString(CultureInfo.InvariantCulture),eq.Item2,String.Format(Nfi, "{0:0.00}", eq.Item3)
+            });
+
+            }
+
+
+            foreach (var cg in ch.Cargo)
+            {
+                pSect.Settings.Add(new Setting("base_cargo")
+            {
+                cg.Item1.ToString(CultureInfo.InvariantCulture),
+                cg.Item2.ToString(CultureInfo.InvariantCulture),
+                "",
+                "",
+                "0"
+            });
+
+            }
+
+            var wgSets = oldFile.GetSettings("Player", "wg");
+
+            pSect.Settings.AddRange(wgSets);
+
+
+            foreach (var visit in ch.Visits)
+            {
+                pSect.Settings.Add(new Setting("visit")
+            {
+                visit.Key.ToString(CultureInfo.InvariantCulture),
+                visit.Value.ToString(CultureInfo.InvariantCulture)
+            });
+            }
+
+            pSect.Settings.Add(oldFile.GetSetting("Player","interface"));
+
+            //todo: mPlayer, flhook
 
 
             return true;
