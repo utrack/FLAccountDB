@@ -12,9 +12,9 @@ namespace FLAccountDB
         }
 
 
-        public static bool SaveCharacter(this Character ch, string pathToAccDir)
+        public static bool SaveCharacter(this Character ch, string pathToAccDir, LogDispatcher.LogDispatcher log)
         {
-            return AccountRetriever.SaveCharacter(ch,Path.Combine(pathToAccDir, ch.CharPath + ".fl"));
+            return AccountRetriever.SaveCharacter(ch,Path.Combine(pathToAccDir, ch.CharPath + ".fl"),log);
         }
 
         

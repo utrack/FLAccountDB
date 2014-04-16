@@ -125,6 +125,10 @@ namespace FLAccountDB.NoSQL
                 }
             }
 
+            player.AccountID = path.Substring(path.Length - 26, 11);
+            player.CharID = path.Substring(path.Length - 14, 11);
+            player.CharPath = path.Substring(path.Length - 26, 23);
+
             return player;
         }
 
@@ -203,7 +207,7 @@ namespace FLAccountDB.NoSQL
             return player;
         }
 
-        public static bool SaveCharacter(Character ch, string path)
+        public static bool SaveCharacter(Character ch, string path, LogDispatcher.LogDispatcher log)
         {
             var oldFile = new DataFile(path);
             var newFile = new DataFile();
@@ -224,10 +228,7 @@ namespace FLAccountDB.NoSQL
                 (ch.LastOnline.ToFileTime() & 0xFFFFFFFF).ToString(CultureInfo.InvariantCulture)
             });
             //TODO: name
-            //pSect.Settings.Add(new Setting("money")
-            //{
-            //    ch.Money.ToString(CultureInfo.InvariantCulture)
-            //});
+            pSect.Settings.Add(oldFile.GetSetting("Player","name"));
 
             pSect.Settings.Add(new Setting("rank")
             {
@@ -274,10 +275,29 @@ namespace FLAccountDB.NoSQL
             {
                 ch.System
             });
-            pSect.Settings.Add(new Setting("base")
+
+            if (ch.Base != null)
+                pSect.Settings.Add(new Setting("base")
+                {
+                    ch.Base
+                });
+            else
             {
-                ch.Base
-            });
+                //in space
+                pSect.Settings.Add(new Setting("pos")
+                {
+                    String.Format(Nfi,"{0:0.0}",ch.Position[0]),
+                    String.Format(Nfi,"{0:0.0}",ch.Position[1]),
+                    String.Format(Nfi,"{0:0.0}",ch.Position[2])
+                });
+
+                pSect.Settings.Add(new Setting("rotate")
+                {
+                    "0","0","0"
+                });
+
+            }
+
             pSect.Settings.Add(new Setting("ship_archetype")
             {
                 ch.ShipArch.ToString(CultureInfo.InvariantCulture)
@@ -343,9 +363,7 @@ namespace FLAccountDB.NoSQL
 
             }
 
-            var wgSets = oldFile.GetSettings("Player", "wg");
-
-            pSect.Settings.AddRange(wgSets);
+            pSect.Settings.AddRange(oldFile.GetSettings("Player", "wg"));
 
 
             foreach (var visit in ch.Visits)
@@ -360,8 +378,11 @@ namespace FLAccountDB.NoSQL
             pSect.Settings.Add(oldFile.GetSetting("Player","interface"));
 
             //todo: mPlayer, flhook
+            newFile.Sections.Add(oldFile.GetFirstOf("mPlayer"));
+            newFile.Sections.Add(oldFile.GetFirstOf("flhook"));
 
-
+            newFile.Save(path);
+            log.NewMessage(LogType.Info,"Saved profile {0}: {1}",ch.Name,path);
             return true;
         }
 

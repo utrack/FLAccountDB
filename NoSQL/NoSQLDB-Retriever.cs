@@ -77,7 +77,7 @@ namespace FLAccountDB.NoSQL
         private const string SelectGroupByAccount = "SELECT * FROM Accounts WHERE AccID = '@AccID'";
         private const string SelectGroupBySystem = "SELECT * FROM Accounts WHERE Location LIKE '%@System%'";
         private const string SelectGroupByItem = "SELECT * FROM Accounts WHERE Equipment LIKE '%@Equip%'";
-
+        private const string SelectGroupByCharCode = "SELECT * FROM Accounts WHERE CharCode = '@CharCode'";
 
 
         public void GetAccountChars(string accID)
@@ -139,6 +139,16 @@ namespace FLAccountDB.NoSQL
             bgw.RunWorkerCompleted += _bgw_RunWorkerCompleted;
             bgw.DoWork += _bgw_DoWork;
             bgw.RunWorkerAsync(SelectGroupByName.Replace("@CharName", name));
+            //return GetMeta();
+        }
+
+        public void GetMetasByCharID(string name)
+        {
+            name = EscapeString(name);
+            var bgw = new BackgroundWorker();
+            bgw.RunWorkerCompleted += _bgw_RunWorkerCompleted;
+            bgw.DoWork += _bgw_DoWork;
+            bgw.RunWorkerAsync(SelectGroupByCharCode.Replace("@CharCode", name));
             //return GetMeta();
         }
 

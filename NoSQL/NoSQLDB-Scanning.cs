@@ -228,7 +228,7 @@ namespace FLAccountDB.NoSQL
 
 
 
-        private void LoadAccountDirectory(string path)
+        public void LoadAccountDirectory(string path)
         {
             //var accountID = AccountRetriever.GetAccountID(path);
             var accountID = path.Substring(path.Length - 11);
