@@ -25,13 +25,19 @@ namespace FLAccountDB
         public List<ReputationItem> Reputation = new List<ReputationItem>();
         //Dictionary<string, float>
 
+        
+
         /// <summary>
         /// Player's primary IFF\Faction
         /// </summary>
         public string ReputationIFF;
+
+
         public Dictionary<uint, byte> Visits = new Dictionary<uint, byte>();
         public List<uint> VisitedBases = new List<uint>();
         public List<uint> VisitedSystems = new List<uint>();
+
+        public DateTime Created;
 
         public float Health;
         public List<WTuple<uint, uint>> Cargo = new List<WTuple<uint, uint>>();
@@ -40,6 +46,8 @@ namespace FLAccountDB
         /// Stores player's equipment. Tuple: ID, Hardpoint name, Health
         /// </summary>
         public List<Tuple<uint,string,float>> EquipmentList = new List<Tuple<uint, string, float>>();
+
+
         public string LastBase;
         public float[] Position;
         public float[] Rotation;

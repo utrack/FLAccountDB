@@ -19,7 +19,10 @@ namespace FLAccountDB.NoSQL
         public static Character GetAccount(string path)
         {
             var flFile = new DataFile(path);
-            var player = new Character();
+            var player = new Character
+            {
+                Created = System.IO.File.GetCreationTime(path)
+            };
 
             foreach (var set in flFile.GetFirstOf("Player").Settings)
                 {
