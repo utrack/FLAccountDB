@@ -78,6 +78,8 @@ namespace FLAccountDB.NoSQL
             _conn.Open();
             _log.NewMessage(LogType.Info, "NoSQLDB: Connected.");
             Queue = new DBQueue(_conn,_log);
+            if (StateChanged != null)
+                StateChanged(DBStates.Ready);
         }
 
         public void CloseDB()
