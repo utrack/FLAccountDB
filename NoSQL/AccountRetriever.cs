@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using FLAccountDB.Data;
 using FLDataFile;
 using LogDispatcher;
 
@@ -139,7 +140,7 @@ namespace FLAccountDB.NoSQL
         /// </summary>
         /// <param name="path"></param>
         /// <returns></returns>
-        public static Metadata GetMeta(string path, LogDispatcher.LogDispatcher log)
+        public static Metadata GetMeta(string path)
         {
             var flFile = new DataFile(path);
             var player = new Metadata
@@ -181,8 +182,8 @@ namespace FLAccountDB.NoSQL
                             player.ShipArch = res;
                             break;
                         }
-                        if (log != null)
-                            log.NewMessage(LogType.Warning,"Garbage shiparch: " + set[0] + " for " + flFile.Path);
+                        if (Logger.LogDisp != null)
+                            Logger.LogDisp.NewMessage(LogType.Warning, "Garbage shiparch: " + set[0] + " for " + flFile.Path);
 
                         return null;
 
@@ -207,7 +208,7 @@ namespace FLAccountDB.NoSQL
             return player;
         }
 
-        public static bool SaveCharacter(Character ch, string path, LogDispatcher.LogDispatcher log)
+        public static bool SaveCharacter(Character ch, string path)
         {
             var oldFile = new DataFile(path);
             var newFile = new DataFile();
@@ -382,7 +383,7 @@ namespace FLAccountDB.NoSQL
             newFile.Sections.Add(oldFile.GetFirstOf("flhook"));
 
             newFile.Save(path);
-            log.NewMessage(LogType.Info,"Saved profile {0}: {1}",ch.Name,path);
+            Logger.LogDisp.NewMessage(LogType.Info, "Saved profile {0}: {1}", ch.Name, path);
             return true;
         }
 

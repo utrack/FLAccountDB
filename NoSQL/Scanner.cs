@@ -10,29 +10,27 @@ using LogDispatcher;
 
 namespace FLAccountDB.NoSQL
 {
-
-    public enum DBStates
-    {
-        Initiating,
-        Updating,
-        UpdatingFormFiles,
-        Ready,
-        Closed
-    }
-
-    public partial class NoSQLDB
+    public class Scanner
     {
 
-        
+        public event PercentageChanged ProgressChanged;
+        public delegate void PercentageChanged(int percent, int qCount);
+
+        public event StateChange StateChanged;
+        public delegate void StateChange(DBStates state);
+
+        private readonly SQLiteConnection _conn;
+        private readonly NoSQLDB _db;
+        public Scanner(SQLiteConnection conn,NoSQLDB db)
+        {
+            _conn = conn;
+            _db = db;
+        }
 
 
         private BackgroundWorker _bgwLoader;
 
-        public event PercentageChanged ProgressChanged;
-        public delegate void PercentageChanged(int percent,int qCount);
 
-        public event StateChange StateChanged;
-        public delegate void StateChange(DBStates state);
 
         private readonly AutoResetEvent _areReadyToClose = new AutoResetEvent(false);
 
@@ -64,7 +62,7 @@ namespace FLAccountDB.NoSQL
             _bgwLoader.ProgressChanged += _bgwLoader_ProgressChanged;
             _bgwLoader.RunWorkerAsync(aggressive);
             _bgwLoader.RunWorkerCompleted += _bgwLoader_RunWorkerCompleted;
-            
+
         }
 
         void _bgwLoader_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -73,18 +71,36 @@ namespace FLAccountDB.NoSQL
             if (StateChanged != null)
                 StateChanged(DBStates.Ready);
 
-            if (e.Cancelled && _closePending)
+            if (e.Cancelled && _db.ClosePending)
                 _areReadyToClose.Set();
             if (ProgressChanged != null)
-                ProgressChanged(100, Queue.Count);
-            
+                ProgressChanged(100, _db.Queue.Count);
 
+
+        }
+
+        public void Cancel()
+        {
+            if (_bgwLoader != null)
+                if (_bgwLoader.IsBusy)
+                {
+                    _bgwLoader.CancelAsync();
+                    _areReadyToClose.WaitOne();
+                }
+
+
+            if (_bgwUpdater != null)
+                if (_bgwUpdater.IsBusy)
+                {
+                    _bgwUpdater.CancelAsync();
+                    _areReadyToClose.WaitOne();
+                }
         }
 
         void _bgwLoader_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             if (ProgressChanged != null)
-                ProgressChanged(e.ProgressPercentage,(int)e.UserState);
+                ProgressChanged(e.ProgressPercentage, (int)e.UserState);
         }
 
         void _bgwLoader_DoWork(object sender, DoWorkEventArgs e)
@@ -93,11 +109,11 @@ namespace FLAccountDB.NoSQL
             if (StateChanged != null)
                 StateChanged(DBStates.Initiating);
 
-            var accDirs = new DirectoryInfo(AccPath).GetDirectories("??-????????").OrderByDescending(d => d.LastAccessTime);
+            var accDirs = new DirectoryInfo(_db.AccPath).GetDirectories("??-????????").OrderByDescending(d => d.LastAccessTime);
             //Directory.GetDirectories(path, "??-????????").OrderByDescending(d => d.La);
             var i = 0;
             var count = accDirs.Count();
-            if ((bool) e.Argument)
+            if ((bool)e.Argument)
                 Parallel.ForEach(accDirs, account =>
                 {
                     if (_bgwLoader.CancellationPending)
@@ -109,11 +125,11 @@ namespace FLAccountDB.NoSQL
                     _bgwLoader.ReportProgress((i / count) * 100);
                     i++;
                 }
-                    
+
                     );
             else
             {
-                
+
 
                 foreach (var acc in accDirs)
                 {
@@ -126,14 +142,14 @@ namespace FLAccountDB.NoSQL
                     _bgwLoader.ReportProgress(
                         (int)(
                         ((double)i / count)
-                        *100
-                        ),Queue.Count
+                        * 100
+                        ), _db.Queue.Count
                         );
                     i++;
                 }
             }
-                
-                
+
+
         }
         #endregion
 
@@ -165,37 +181,37 @@ namespace FLAccountDB.NoSQL
             _areReadyToClose.Reset();
             if (StateChanged != null)
                 StateChanged(DBStates.Ready);
-            
-            if (e.Cancelled && _closePending)
+
+            if (e.Cancelled && _db.ClosePending)
                 _areReadyToClose.Set();
             if (ProgressChanged != null)
-                ProgressChanged(100, Queue.Count);
+                ProgressChanged(100, _db.Queue.Count);
         }
 
         void _bgwUpdater_DoWork(object sender, DoWorkEventArgs e)
         {
-            var lastModTime = (DateTime) e.Argument;
-            var len = AccPath.Length + 12;
+            var lastModTime = (DateTime)e.Argument;
+            var len = _db.AccPath.Length + 12;
             if (StateChanged != null)
                 StateChanged(DBStates.UpdatingFormFiles);
             // find all the newer savefiles, get the directory path, get unique directories
             // LINQ magic ;)
             var accDirs =
-                new DirectoryInfo(AccPath).GetFiles("??-????????.fl", SearchOption.AllDirectories)
+                new DirectoryInfo(_db.AccPath).GetFiles("??-????????.fl", SearchOption.AllDirectories)
                     .Where(d => d.LastWriteTime > lastModTime)
                     .Select(w => w.FullName.Substring(0, len))
                     .Distinct();
 
             // add there all the directories whose content had changed (new\del accounts, bans etc)
             accDirs = accDirs.Union(
-                new DirectoryInfo(AccPath).GetDirectories("??-????????")
+                new DirectoryInfo(_db.AccPath).GetDirectories("??-????????")
                 .Where(w => w.LastWriteTime > lastModTime)
                 .Select(w => w.FullName));
 
             var enumerable = accDirs as IList<string> ?? accDirs.ToList();
 
 
-            _log.NewMessage(LogType.Info,
+            Logger.LogDisp.NewMessage(LogType.Info,
                 "Update: found " + enumerable.Count() + " changed accounts.");
 
             if (StateChanged != null)
@@ -203,7 +219,7 @@ namespace FLAccountDB.NoSQL
 
             var i = 0;
             var count = enumerable.Count;
-            
+
 
             // rescan stuff
             foreach (var accDir in enumerable)
@@ -218,7 +234,7 @@ namespace FLAccountDB.NoSQL
                     (int)(
                     ((double)i / count)
                     * 100
-                    ), Queue.Count
+                    ), _db.Queue.Count
                     );
                 i++;
             }
@@ -226,7 +242,22 @@ namespace FLAccountDB.NoSQL
 
         #endregion
 
+        private List<string> GetCharCodesByAccount(string accID)
+        {
+            accID = NoSQLDB.EscapeString(accID);
 
+            var str = new List<string>();
+            using (var cmd = new SQLiteCommand(_conn))
+            {
+                cmd.CommandText = String.Format("SELECT * FROM Accounts WHERE AccID = '{0}'",accID);
+                //cmd.Parameters.AddWithValue("@AccID", accID);
+                using (var rdr = cmd.ExecuteReader())
+                    while (rdr.Read())
+                        str.Add(rdr.GetString(0));
+            }
+
+            return str;
+        }
 
         public void LoadAccountDirectory(string path)
         {
@@ -234,13 +265,29 @@ namespace FLAccountDB.NoSQL
             var accountID = path.Substring(path.Length - 11);
             var charFiles = Directory.GetFiles(path, "??-????????.fl");
 
-            //remove the account dir if there's no charfiles
-            if (charFiles.Length == 0) Directory.Delete(path, true);
-
             var dbChars = GetCharCodesByAccount(accountID);
 
-            using (var comm = new SQLiteCommand(InsertText, Queue.Conn))
-                foreach (var md in charFiles.Select(w => AccountRetriever.GetMeta(w,_log)).Where(md => md != null))
+            //remove the account dir if there's no charfiles
+            if (charFiles.Length == 0)
+            {
+                Directory.Delete(path, true);
+                foreach (var acc in dbChars)
+                    _db.RemoveAccountFromDB(accountID, acc.Substring(12));
+                return;
+            }
+
+            var loginCreds = GetAccIPs(path);
+
+            foreach (var cred in loginCreds)
+            {
+                _db.LoginDB.AddIP(accountID, cred.Item1, cred.Item2);
+                _db.LoginDB.AddIds(accountID, cred.Item3, cred.Item4);
+            }
+
+            
+
+            using (var comm = new SQLiteCommand(InsertText, _db.Queue.Conn))
+                foreach (var md in charFiles.Select(AccountRetriever.GetMeta).Where(md => md != null))
                 {
                     comm.Parameters.AddWithValue("@CharPath", md.CharPath);
                     comm.Parameters.AddWithValue("@CharName", md.Name);
@@ -254,18 +301,65 @@ namespace FLAccountDB.NoSQL
                     comm.Parameters.AddWithValue("@Equipment", md.Equipment);
                     comm.Parameters.AddWithValue("@Created", DateTime.Now);
                     comm.Parameters.AddWithValue("@LastOnline", md.LastOnline);
-                    if (Queue != null)
-                    Queue.Execute(comm);
+                    if (_db.Queue != null)
+                        _db.Queue.Execute(comm);
 
                     dbChars.Remove(md.CharID);
                 }
 
             if (dbChars.Count == 0) return;
 
+
             foreach (var acc in dbChars)
-                RemoveAccountFromDB(accountID, acc);
+                _db.RemoveAccountFromDB(accountID, acc.Substring(12));
         }
 
+        /// <summary>
+        /// Get login info for the file account.
+        /// </summary>
+        /// <param name="accPath">Full account path</param>
+        /// <returns>List of IP,AccessTime,ID1,ID2.</returns>
+        private static IEnumerable<Tuple<string, DateTime, string, string>> GetAccIPs(string accPath)
+        {
+            var loginFiles = Directory.GetFiles(accPath, "login_*.ini");
+            var ret = new List<Tuple<string, DateTime, string, string>>();
+            foreach (var loginFilePath in loginFiles)
+            {
+                // format: time=1347057642 id=3A44AC9A ip=13.33.33.37 id2=2A7A4F74
+                var content = File.ReadAllText(loginFilePath);
+                var loginID = "";
+                var loginID2 = "";
+                var ip = "";
+
+                var values = content.Split(new[] { '\t', ' ' });
+                foreach (var parts in values.Select(raw => raw.Split('=')))
+                {
+                    //string key = parts[0];
+                    //string value = parts[1];
+
+                    switch (parts[0])
+                    {
+                        case "id":
+                            loginID += parts[1].Trim();
+                            break;
+                        case "id2":
+                            loginID2 += parts[1].Trim();
+                            break;
+                        case "ip":
+                            ip += parts[1].Trim();
+                            break;
+
+                    }
+                }
+
+                var accessTime = File.GetLastWriteTime(loginFilePath);
+                ret.Add(
+                    new Tuple<string, DateTime, string, string>
+                        (ip, accessTime, loginID, loginID2)
+                        );
+            }
+            return ret;
+        }
 
     }
 }

@@ -1,7 +1,7 @@
 ﻿using System;
 using FLAccountDB.NoSQL;
 
-namespace FLAccountDB
+namespace FLAccountDB.Data
 {
     public class Metadata
     {
@@ -20,9 +20,9 @@ namespace FLAccountDB
 
         public string CharPath;
 
-        public static Metadata ParseMeta(string path, LogDispatcher.LogDispatcher log)
+        public static Metadata ParseMeta(string path)
         {
-            return AccountRetriever.GetMeta(path,log);
+            return AccountRetriever.GetMeta(path);
         }
 
 

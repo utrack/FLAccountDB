@@ -1,29 +1,46 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.IO;
+using FLAccountDB.Data;
+using FLAccountDB.LoginDB;
 using LogDispatcher;
 
 namespace FLAccountDB.NoSQL
 {
-    public partial class NoSQLDB
+
+
+
+    public class NoSQLDB
     {
 
         private readonly SQLiteConnection _conn;
         public readonly DBQueue Queue;
+
+        public readonly LoginDatabase LoginDB;
+
         public readonly string AccPath;
-        private bool _closePending;
-        private readonly LogDispatcher.LogDispatcher _log;
+        public bool ClosePending;
+
+
+
+        public event StateChange StateChanged;
+        public delegate void StateChange(DBStates state);
+
+        public readonly Scanner Scan;
+        public readonly DBCrawler Retriever;
         #region "Database initiation"
+
         /// <summary>
         /// Initiate the legacy NoSQL Freelancer storage.
         /// </summary>
         /// <param name="dbPath">Path to the SQLite database file. DB will be created if file is nonexistent.</param>
         /// <param name="accPath">Path to accounts' directory.</param>
+        /// <param name="log"></param>
         public NoSQLDB(string dbPath, string accPath, LogDispatcher.LogDispatcher log)
         {
-            _log = log;
+            //One-shot event assignment; NoSQLDB-Retriever
+            Logger.LogDisp = log;
             //Retriever = new MetaRetriever(this);
             AccPath = accPath;
 
@@ -43,7 +60,7 @@ namespace FLAccountDB.NoSQL
                     }
                     catch (Exception e)
                     {
-                        _log.NewMessage(LogType.Fatal, "NoSQLDB: Can't connect to new player DB. Reason: " + e.Message);
+                        Logger.LogDisp.NewMessage(LogType.Fatal, "NoSQLDB: Can't connect to new player DB. Reason: " + e.Message);
                         throw;
                     }
  
@@ -64,10 +81,29 @@ namespace FLAccountDB.NoSQL
          LastOnline DATETIME
 );";
                     createDataBase.ExecuteNonQuery();
-                    createDataBase.CommandText = "CREATE INDEX CharLookup ON Accounts(CharName ASC)";
+
+
+                    createDataBase.CommandText = @"CREATE TABLE LoginIP(
+         AccID TEXT NOT NULL,
+         IP TEXT NOT NULL,
+         LogTime DATETIME NOT NULL
+);";
                     createDataBase.ExecuteNonQuery();
+
+                    createDataBase.CommandText = @"CREATE TABLE LoginID(
+         AccID TEXT NOT NULL,
+         ID1 TEXT NOT NULL,
+         ID2 DATETIME NOT NULL
+);";
+                    createDataBase.ExecuteNonQuery();
+
+                    createDataBase.CommandText = "CREATE INDEX AccLookup ON LoginIP(AccID ASC);";
+                    createDataBase.ExecuteNonQuery();
+                    createDataBase.CommandText = "CREATE INDEX CharLookup ON Accounts(CharName ASC);";
+                    createDataBase.ExecuteNonQuery();
+
                     _conn.Close();
-                    _log.NewMessage(LogType.Warning, "Created new player DB.");
+                    Logger.LogDisp.NewMessage(LogType.Warning, "Created new player DB.");
                     
             }
 
@@ -76,32 +112,32 @@ namespace FLAccountDB.NoSQL
             var cs = new SQLiteConnectionStringBuilder {DataSource = dbPath};
             _conn.ConnectionString = cs.ToString();
             _conn.Open();
-            _log.NewMessage(LogType.Info, "NoSQLDB: Connected.");
-            Queue = new DBQueue(_conn,_log);
+            Logger.LogDisp.NewMessage(LogType.Info, "NoSQLDB: Connected.");
+            Queue = new DBQueue(_conn,  "NoSQLDB");
+
+            LoginDB = new LoginDatabase( _conn, Queue);
+
+            Scan = new Scanner(_conn,this);
+
+            Retriever = new DBCrawler(_conn,LoginDB);
+
+            Scan.StateChanged += Scan_StateChanged;
+
             if (StateChanged != null)
                 StateChanged(DBStates.Ready);
         }
 
+        void Scan_StateChanged(DBStates state)
+        {
+            if (StateChanged != null)
+                StateChanged(state);
+        }
+
         public void CloseDB()
         {
-            _closePending = true;
-            if (_bgwLoader != null)
-                if (_bgwLoader.IsBusy)
-                {
-                    _bgwLoader.CancelAsync();
-                    _areReadyToClose.WaitOne();
-                }
-                    
-
-            if (_bgwUpdater != null)
-                if (_bgwUpdater.IsBusy)
-                {
-                    _bgwUpdater.CancelAsync();
-                    _areReadyToClose.WaitOne();
-                }
-                    
-
+            ClosePending = true;
             
+            Scan.Cancel();
             Queue.Force();
             if (_conn.State == ConnectionState.Open)
                 _conn.Close();
@@ -124,26 +160,9 @@ namespace FLAccountDB.NoSQL
             return str.Replace("'", "''");
         }
 
-        private List<string> GetCharCodesByAccount(string accID)
-        {
-            accID = EscapeString(accID);
+        
 
-            var str = new List<string>();
-            using (var cmd = new SQLiteCommand(
-                "SELECT CharCode FROM Accounts WHERE AccID = '@AccID'",
-                _conn))
-            {
-                cmd.Parameters.AddWithValue("@AccID", accID);
-                //TODO: ctor somewhere there is really CPU hungary. The whole method in fact
-                using (var rdr = cmd.ExecuteReader())
-                    while (rdr.Read())
-                        str.Add(rdr.GetString(0));
-            }
-                
-            return str;
-        }
-
-        private void RemoveAccountFromDB(string accID, string charID)
+        public void RemoveAccountFromDB(string accID, string charID)
         {
             accID = EscapeString(accID);
             charID = EscapeString(charID);
@@ -154,8 +173,7 @@ namespace FLAccountDB.NoSQL
                 cmd.Parameters.AddWithValue("@AccID", accID);
                 cmd.Parameters.AddWithValue("@CharCode", charID);
                 Queue.Execute(cmd);
-            }
-            
+            } 
         }
 
         public bool RemoveAccount(Metadata md)

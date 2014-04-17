@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using FLAccountDB.NoSQL;
 
-namespace FLAccountDB
+namespace FLAccountDB.Data
 {
 
     public class ReputationItem

@@ -1,0 +1,136 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Data.SQLite;
+using FLAccountDB.Data;
+using FLAccountDB.LoginDB;
+using LogDispatcher;
+
+namespace FLAccountDB
+{
+    public static class BackgroundRequest
+    {
+        static event EventHandler OnMetaReady;
+        static event EventHandler OnIPReady;
+        public static readonly OneShotHandlerQueue<EventArgs> IPDataReady = new OneShotHandlerQueue<EventArgs>();
+        public static readonly OneShotHandlerQueue<EventArgs> MetaDataReady = new OneShotHandlerQueue<EventArgs>();
+
+        static BackgroundRequest()
+        {
+            OnMetaReady += MetaDataReady.Handle;
+            OnIPReady += IPDataReady.Handle;
+        }
+
+        public static void GetMetas(SQLiteConnection conn, string command)
+        {
+            var bgw = new BackgroundWorker();
+            //bgw.RunWorkerCompleted +=   ;
+            bgw.DoWork += _bgw_DoWork;
+            bgw.RunWorkerAsync(
+                new object[]
+            {
+                conn,
+                command
+            });
+        }
+
+        public static void GetIPData(SQLiteConnection conn, string command)
+        {
+            var bgw = new BackgroundWorker();
+            //bgw.RunWorkerCompleted +=   ;
+            bgw.DoWork += _bgw_DoWork_IP;
+            bgw.RunWorkerAsync(
+                new object[]
+            {
+                conn,
+                command
+            });
+        }
+
+        static void _bgw_DoWork(object sender, DoWorkEventArgs e)
+        {
+                OnMetaReady(GetMetaForeground((string)((object[])e.Argument)[1], (SQLiteConnection)((object[])e.Argument)[0]),null);
+        }
+
+        static void _bgw_DoWork_IP(object sender, DoWorkEventArgs e)
+        {
+                OnIPReady(GetIP((string)((object[])e.Argument)[1], (SQLiteConnection)((object[])e.Argument)[0]), null);
+        }
+
+
+        /// <summary>
+        /// Executes the issued command in current thread and returns list of resulting acc metadata.
+        /// </summary>
+        /// <param name="command"></param>
+        /// <param name="conn"></param>
+        /// <returns></returns>
+        public static List<IPData> GetIP(string command, SQLiteConnection conn)
+        {
+            Logger.LogDisp.NewMessage(LogType.Debug, "GetIP Query: {0}", command);
+            if (conn == null) return null;
+            if (conn.State == ConnectionState.Closed) return null;
+            var ret = new List<IPData>();
+            using (var cmd = new SQLiteCommand(command, conn))
+            {
+                cmd.CommandText = command;
+                var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    var md = new IPData();
+                    md.AccID = reader.GetString(0);
+                    md.IP = reader.GetString(1);
+                    md.Date = reader.GetDateTime(2);
+
+                    ret.Add(md);
+                }
+
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Executes the issued command and returns list of resulting acc metadata.
+        /// </summary>
+        /// <param name="command"></param>
+        /// <param name="conn"></param>
+        /// <returns></returns>
+        public static List<Metadata> GetMetaForeground(string command,SQLiteConnection conn)
+        {
+            Logger.LogDisp.NewMessage(LogType.Debug, "GetMeta Query: {0}", command);
+            if (conn == null) return null;
+            if (conn.State == ConnectionState.Closed) return null;
+            var ret = new List<Metadata>();
+            using (var cmd = new SQLiteCommand(command, conn))
+            {
+                cmd.CommandText = command;
+                var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    var md = new Metadata();
+                    //{
+                    md.CharPath = reader.GetString(0);
+                    md.Name = reader.GetString(1);
+                    md.AccountID = reader.GetString(2);
+                    md.CharID = reader.GetString(3);
+                    md.Money = (uint)reader.GetInt32(4);
+                    md.Rank = (byte)reader.GetInt32(5);
+                    md.ShipArch = (uint)reader.GetInt32(6);
+                    md.System = reader.GetString(7);
+                    md.Base = reader.GetValue(8).ToString();
+                    md.Equipment = reader.GetString(9);
+                    md.LastOnline = reader.GetDateTime(11);
+                    //};
+
+                    ret.Add(md);
+                }
+
+            }
+
+            return ret;
+        }
+
+
+    }
+}
