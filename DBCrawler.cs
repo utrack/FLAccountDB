@@ -49,8 +49,6 @@ namespace FLAccountDB
         private const string SelectGroupByItem = "SELECT * FROM Accounts WHERE Equipment LIKE '%@Equip%'";
         private const string SelectGroupByCharCode = "SELECT * FROM Accounts WHERE CharCode = '@CharCode'";
 
-
-
         public void GetAccountChars(string accID)
         {
             accID = NoSQLDB.EscapeString(accID);

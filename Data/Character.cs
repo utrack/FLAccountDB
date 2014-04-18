@@ -67,9 +67,9 @@ namespace FLAccountDB.Data
         }
 
 
-        public static Character ParseCharacter(string path)
+        public static Character ParseCharacter(string path, LogDispatcher.LogDispatcher log)
         {
-            return AccountRetriever.GetAccount(path);
+            return AccountRetriever.GetAccount(path,log);
         }
     }
 }

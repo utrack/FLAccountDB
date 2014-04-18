@@ -7,9 +7,9 @@ namespace FLAccountDB
     public static class MetadataExtensions
     {
 
-        public static Character GetCharacter(this Metadata md, string pathToAccDir)
+        public static Character GetCharacter(this Metadata md, string pathToAccDir,LogDispatcher.LogDispatcher log)
         {
-            return AccountRetriever.GetAccount(Path.Combine(pathToAccDir, md.CharPath + ".fl"));
+            return AccountRetriever.GetAccount(Path.Combine(pathToAccDir, md.CharPath + ".fl"),log);
         }
 
 

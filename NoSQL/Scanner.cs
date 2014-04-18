@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using FLAccountDB.Data;
 using LogDispatcher;
 
 namespace FLAccountDB.NoSQL
@@ -18,6 +19,13 @@ namespace FLAccountDB.NoSQL
 
         public event StateChange StateChanged;
         public delegate void StateChange(DBStates state);
+
+        /// <summary>
+        /// Used for player checking. Thrown every time the account needs to be checked
+        /// Return null to re-read the char, e.Cancel = true to rescan it next time
+        /// </summary>
+        public event OnAccountScan AccountScanned;
+        public delegate Metadata OnAccountScan(Metadata meta,CancelEventArgs e);
 
         private readonly SQLiteConnection _conn;
         private readonly NoSQLDB _db;
@@ -48,9 +56,11 @@ namespace FLAccountDB.NoSQL
         /// <summary>
         /// Rescans the whole FL directory to the AccDB.
         /// </summary>
-        /// <param name="aggressive">Use aggressive scan? Very CPU-hungry but about twice as fast.</param>
+        /// <param name="aggressive">Use aggressive scan? Very HDD-hungry but about twice as fast.</param>
         public void LoadDB(bool aggressive = false)
         {
+
+
             if (IsJobRunning()) return;
 
             _bgwLoader = new BackgroundWorker
@@ -60,19 +70,27 @@ namespace FLAccountDB.NoSQL
             };
             _bgwLoader.DoWork += _bgwLoader_DoWork;
             _bgwLoader.ProgressChanged += _bgwLoader_ProgressChanged;
-            _bgwLoader.RunWorkerAsync(aggressive);
             _bgwLoader.RunWorkerCompleted += _bgwLoader_RunWorkerCompleted;
+            _bgwLoader.RunWorkerAsync(aggressive);
+            
 
         }
 
         void _bgwLoader_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             _areReadyToClose.Reset();
+
+            if (e.Cancelled && _db.ClosePending)
+            {
+                _areReadyToClose.Set();
+                return;
+            }
+
+
             if (StateChanged != null)
                 StateChanged(DBStates.Ready);
 
-            if (e.Cancelled && _db.ClosePending)
-                _areReadyToClose.Set();
+
             if (ProgressChanged != null)
                 ProgressChanged(100, _db.Queue.Count);
 
@@ -105,9 +123,13 @@ namespace FLAccountDB.NoSQL
 
         void _bgwLoader_DoWork(object sender, DoWorkEventArgs e)
         {
+            Logger.LogDisp.NewMessage(LogType.Info,"Started player DB initialization...");
 
             if (StateChanged != null)
                 StateChanged(DBStates.Initiating);
+
+            using (var cmd = new SQLiteCommand("DELETE FROM Accounts;", _conn))
+                cmd.ExecuteNonQuery();
 
             var accDirs = new DirectoryInfo(_db.AccPath).GetDirectories("??-????????").OrderByDescending(d => d.LastAccessTime);
             //Directory.GetDirectories(path, "??-????????").OrderByDescending(d => d.La);
@@ -135,6 +157,7 @@ namespace FLAccountDB.NoSQL
                 {
                     if (_bgwLoader.CancellationPending)
                     {
+                        _areReadyToClose.Set();
                         e.Cancel = true;
                         return;
                     }
@@ -149,7 +172,7 @@ namespace FLAccountDB.NoSQL
                 }
             }
 
-
+            Logger.LogDisp.NewMessage(LogType.Info, "Player DB initialized.");
         }
         #endregion
 
@@ -171,25 +194,34 @@ namespace FLAccountDB.NoSQL
             };
             _bgwUpdater.DoWork += _bgwUpdater_DoWork;
             _bgwUpdater.ProgressChanged += _bgwLoader_ProgressChanged;
+            _bgwUpdater.RunWorkerCompleted +=_bgwUpdater_RunWorkerCompleted;
             _bgwUpdater.RunWorkerAsync(lastModTime);
-            _bgwUpdater.RunWorkerCompleted += _bgwUpdater_RunWorkerCompleted;
+            
 
         }
 
         void _bgwUpdater_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             _areReadyToClose.Reset();
+
+            if (e.Cancelled && _db.ClosePending)
+            {
+                _areReadyToClose.Set();
+                return;
+            }
+                
+
             if (StateChanged != null)
                 StateChanged(DBStates.Ready);
 
-            if (e.Cancelled && _db.ClosePending)
-                _areReadyToClose.Set();
+            
             if (ProgressChanged != null)
                 ProgressChanged(100, _db.Queue.Count);
         }
 
         void _bgwUpdater_DoWork(object sender, DoWorkEventArgs e)
         {
+            Logger.LogDisp.NewMessage(LogType.Info, "Started player DB update...");
             var lastModTime = (DateTime)e.Argument;
             var len = _db.AccPath.Length + 12;
             if (StateChanged != null)
@@ -226,6 +258,7 @@ namespace FLAccountDB.NoSQL
             {
                 if (_bgwUpdater.CancellationPending)
                 {
+                    _areReadyToClose.Set();
                     e.Cancel = true;
                     return;
                 }
@@ -238,6 +271,7 @@ namespace FLAccountDB.NoSQL
                     );
                 i++;
             }
+            Logger.LogDisp.NewMessage(LogType.Info, "Player DB update finished.");
         }
 
         #endregion
@@ -286,23 +320,27 @@ namespace FLAccountDB.NoSQL
 
             
 
-            using (var comm = new SQLiteCommand(InsertText, _db.Queue.Conn))
+           
                 foreach (var md in charFiles.Select(AccountRetriever.GetMeta).Where(md => md != null))
                 {
-                    comm.Parameters.AddWithValue("@CharPath", md.CharPath);
-                    comm.Parameters.AddWithValue("@CharName", md.Name);
-                    comm.Parameters.AddWithValue("@AccID", accountID);
-                    comm.Parameters.AddWithValue("@CharCode", md.CharID);
-                    comm.Parameters.AddWithValue("@Money", md.Money);
-                    comm.Parameters.AddWithValue("@Rank", md.Rank);
-                    comm.Parameters.AddWithValue("@Ship", md.ShipArch);
-                    comm.Parameters.AddWithValue("@Location", md.System);
-                    comm.Parameters.AddWithValue("@Base", md.Base);
-                    comm.Parameters.AddWithValue("@Equipment", md.Equipment);
-                    comm.Parameters.AddWithValue("@Created", DateTime.Now);
-                    comm.Parameters.AddWithValue("@LastOnline", md.LastOnline);
-                    if (_db.Queue != null)
-                        _db.Queue.Execute(comm);
+                    var args = new CancelEventArgs();
+                    var mdNew = md;
+                    if (AccountScanned != null)
+                    {
+                        //TODO: ugly,ugly, readonly foreach
+                        mdNew = AccountScanned(md, args);
+
+                        while (mdNew == null)
+                        {
+                            mdNew = AccountRetriever.GetMeta(path + @"\" + md.CharID + ".fl");
+                            mdNew = AccountScanned(mdNew, args);
+                        }
+
+                        if (args.Cancel)
+                            continue;
+                    }
+                    
+                    AddMetadata(mdNew,accountID);
 
                     dbChars.Remove(md.CharID);
                 }
@@ -312,6 +350,29 @@ namespace FLAccountDB.NoSQL
 
             foreach (var acc in dbChars)
                 _db.RemoveAccountFromDB(accountID, acc.Substring(12));
+        }
+
+
+        private void AddMetadata(Metadata md, string accountID)
+        {
+            using (var comm = new SQLiteCommand(InsertText, _db.Queue.Conn))
+            {
+                comm.Parameters.AddWithValue("@CharPath", md.CharPath);
+                comm.Parameters.AddWithValue("@CharName", md.Name);
+                comm.Parameters.AddWithValue("@AccID", accountID);
+                comm.Parameters.AddWithValue("@CharCode", md.CharID);
+                comm.Parameters.AddWithValue("@Money", md.Money);
+                comm.Parameters.AddWithValue("@Rank", md.Rank);
+                comm.Parameters.AddWithValue("@Ship", md.ShipArch);
+                comm.Parameters.AddWithValue("@Location", md.System);
+                comm.Parameters.AddWithValue("@Base", md.Base);
+                comm.Parameters.AddWithValue("@Equipment", md.Equipment);
+                comm.Parameters.AddWithValue("@Created", DateTime.Now);
+                comm.Parameters.AddWithValue("@LastOnline", md.LastOnline);
+                if (_db.Queue != null)
+                    _db.Queue.Execute(comm);
+            }
+            
         }
 
         /// <summary>
@@ -357,6 +418,8 @@ namespace FLAccountDB.NoSQL
                     new Tuple<string, DateTime, string, string>
                         (ip, accessTime, loginID, loginID2)
                         );
+                //TODO: should we?
+                File.Delete(loginFilePath);
             }
             return ret;
         }

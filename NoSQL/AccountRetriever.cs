@@ -17,7 +17,7 @@ namespace FLAccountDB.NoSQL
         /// </summary>
         /// <param name="path"></param>
         /// <returns></returns>
-        public static Character GetAccount(string path)
+        public static Character GetAccount(string path,LogDispatcher.LogDispatcher log)
         {
             var flFile = new DataFile(path);
             var player = new Character
@@ -82,7 +82,10 @@ namespace FLAccountDB.NoSQL
                                     );
                             break;
                         case "cargo":
-                            player.Cargo.Add(new WTuple<uint, uint>(uint.Parse(set[0]), uint.Parse(set[1])));
+                            if (set[1].StartsWith("-"))
+                                log.NewMessage(LogType.Error,"Player {0} bad setting: {1}",player.Name,set.String());
+                            else
+                                player.Cargo.Add(new WTuple<uint, uint>(uint.Parse(set[0]), uint.Parse(set[1])));
                             break;
                         case "last_base":
                             player.LastBase = set[0];
