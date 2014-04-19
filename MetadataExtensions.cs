@@ -1,4 +1,6 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
+using System.Linq;
 using FLAccountDB.Data;
 using FLAccountDB.NoSQL;
 
@@ -11,7 +13,6 @@ namespace FLAccountDB
         {
             return AccountRetriever.GetAccount(Path.Combine(pathToAccDir, md.CharPath + ".fl"),log);
         }
-
 
         public static bool SaveCharacter(this Character ch, string pathToAccDir, LogDispatcher.LogDispatcher log)
         {

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using FLAccountDB.NoSQL;
 
 namespace FLAccountDB.Data
@@ -56,13 +57,7 @@ namespace FLAccountDB.Data
         {
             get
             {
-                var ret = "";
-                foreach (var eq in EquipmentList)
-                {
-                    ret += " ";
-                    ret += eq.Item1.ToString(CultureInfo.InvariantCulture);
-                }
-                return ret;
+                return String.Join(" ", EquipmentList.Select(w => w.Item1));
             }
         }
 

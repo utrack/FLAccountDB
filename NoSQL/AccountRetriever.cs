@@ -67,8 +67,16 @@ namespace FLAccountDB.NoSQL
                             player.Base = set[0];
                             break;
                         case "ship_archetype":
-                            player.ShipArch = uint.Parse(set[0]);
+                            uint res;
+                        if (uint.TryParse(set[0], out res))
+                        {
+                            player.ShipArch = res;
                             break;
+                        }
+
+                        if (Logger.LogDisp != null)
+                            Logger.LogDisp.NewMessage(LogType.Warning, "Garbage shiparch: " + set[0] + " for " + flFile.Path);
+                            return null;
                         case "base_hull_status":
                             player.Health = float.Parse(set[0], Nfi);
                             break;

@@ -25,7 +25,7 @@ namespace FLAccountDB.NoSQL
         /// Return null to re-read the char, e.Cancel = true to rescan it next time
         /// </summary>
         public event OnAccountScan AccountScanned;
-        public delegate Metadata OnAccountScan(Metadata meta,CancelEventArgs e);
+        public delegate Character OnAccountScan(Character ch,CancelEventArgs e);
 
         private readonly SQLiteConnection _conn;
         private readonly NoSQLDB _db;
@@ -60,8 +60,11 @@ namespace FLAccountDB.NoSQL
         public void LoadDB(bool aggressive = false)
         {
 
+            if (_bgwLoader != null)
+                if (_bgwLoader.IsBusy)
+                    return;
 
-            if (IsJobRunning()) return;
+
 
             _bgwLoader = new BackgroundWorker
             {
@@ -123,6 +126,14 @@ namespace FLAccountDB.NoSQL
 
         void _bgwLoader_DoWork(object sender, DoWorkEventArgs e)
         {
+
+            if (_bgwUpdater != null)
+                if (_bgwUpdater.IsBusy)
+                {
+                    _bgwUpdater.CancelAsync();
+                    _areReadyToClose.WaitOne();
+                }
+
             Logger.LogDisp.NewMessage(LogType.Info,"Started player DB initialization...");
 
             if (StateChanged != null)
@@ -140,6 +151,7 @@ namespace FLAccountDB.NoSQL
                 {
                     if (_bgwLoader.CancellationPending)
                     {
+                        _areReadyToClose.Set();
                         e.Cancel = true;
                         return;
                     }
@@ -258,6 +270,8 @@ namespace FLAccountDB.NoSQL
             {
                 if (_bgwUpdater.CancellationPending)
                 {
+                    Logger.LogDisp.NewMessage(LogType.Info,"Update aborted.");
+                    _areReadyToClose.Reset();
                     _areReadyToClose.Set();
                     e.Cancel = true;
                     return;
@@ -318,10 +332,8 @@ namespace FLAccountDB.NoSQL
                 _db.LoginDB.AddIds(accountID, cred.Item3, cred.Item4);
             }
 
-            
-
-           
-                foreach (var md in charFiles.Select(AccountRetriever.GetMeta).Where(md => md != null))
+ 
+                foreach (var md in charFiles.Select(w => AccountRetriever.GetAccount(w,Logger.LogDisp)).Where(md => md != null))
                 {
                     var args = new CancelEventArgs();
                     var mdNew = md;
@@ -330,11 +342,11 @@ namespace FLAccountDB.NoSQL
                         //TODO: ugly,ugly, readonly foreach
                         mdNew = AccountScanned(md, args);
 
-                        while (mdNew == null)
-                        {
-                            mdNew = AccountRetriever.GetMeta(path + @"\" + md.CharID + ".fl");
-                            mdNew = AccountScanned(mdNew, args);
-                        }
+                        //while (mdNew == null)
+                        //{
+                            //mdNew = AccountRetriever.GetMeta(path + @"\" + md.CharID + ".fl");
+                            //mdNew = AccountScanned(mdNew, args);
+                        //}
 
                         if (args.Cancel)
                             continue;
@@ -342,7 +354,7 @@ namespace FLAccountDB.NoSQL
                     
                     AddMetadata(mdNew,accountID);
 
-                    dbChars.Remove(md.CharID);
+                    dbChars.Remove(md.CharPath);
                 }
 
             if (dbChars.Count == 0) return;
@@ -353,7 +365,7 @@ namespace FLAccountDB.NoSQL
         }
 
 
-        private void AddMetadata(Metadata md, string accountID)
+        private void AddMetadata(Character md, string accountID)
         {
             using (var comm = new SQLiteCommand(InsertText, _db.Queue.Conn))
             {
