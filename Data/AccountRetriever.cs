@@ -2,11 +2,10 @@
 using System.Globalization;
 using System.Linq;
 using System.Text;
-using FLAccountDB.Data;
 using FLDataFile;
 using LogDispatcher;
 
-namespace FLAccountDB.NoSQL
+namespace FLAccountDB.Data
 {
     static class AccountRetriever
     {
@@ -324,17 +323,16 @@ namespace FLAccountDB.NoSQL
 
             }
 
-            foreach (var cg in ch.Cargo)
+            foreach (var cg in ch.Cargo.Where(cg => !((cg.Item1 == 0) | (cg.Item2 == 0))))
             {
                 pSect.Settings.Add(new Setting("cargo")
-            {
-                cg.Item1.ToString(CultureInfo.InvariantCulture),
-                cg.Item2.ToString(CultureInfo.InvariantCulture),
-                "",
-                "",
-                "0"
-            });
-
+                {
+                    cg.Item1.ToString(CultureInfo.InvariantCulture),
+                    cg.Item2.ToString(CultureInfo.InvariantCulture),
+                    "",
+                    "",
+                    "0"
+                });
             }
 
             pSect.Settings.Add(new Setting("last_base")
@@ -362,7 +360,7 @@ namespace FLAccountDB.NoSQL
             }
 
 
-            foreach (var cg in ch.Cargo)
+            foreach (var cg in ch.Cargo.Where(cg => !((cg.Item1 == 0) | (cg.Item2 == 0))))
             {
                 pSect.Settings.Add(new Setting("base_cargo")
             {

@@ -102,6 +102,7 @@ namespace FLAccountDB.NoSQL
 
         public void Cancel()
         {
+            _areReadyToClose.Reset();
             if (_bgwLoader != null)
                 if (_bgwLoader.IsBusy)
                 {
@@ -109,7 +110,7 @@ namespace FLAccountDB.NoSQL
                     _areReadyToClose.WaitOne();
                 }
 
-
+            _areReadyToClose.Reset();
             if (_bgwUpdater != null)
                 if (_bgwUpdater.IsBusy)
                 {
@@ -126,7 +127,7 @@ namespace FLAccountDB.NoSQL
 
         void _bgwLoader_DoWork(object sender, DoWorkEventArgs e)
         {
-
+            _areReadyToClose.Reset();
             if (_bgwUpdater != null)
                 if (_bgwUpdater.IsBusy)
                 {
@@ -183,7 +184,7 @@ namespace FLAccountDB.NoSQL
                     i++;
                 }
             }
-
+            _areReadyToClose.Set();
             Logger.LogDisp.NewMessage(LogType.Info, "Player DB initialized.");
         }
         #endregion
@@ -214,8 +215,6 @@ namespace FLAccountDB.NoSQL
 
         void _bgwUpdater_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            _areReadyToClose.Reset();
-
             if (e.Cancelled && _db.ClosePending)
             {
                 _areReadyToClose.Set();
@@ -236,8 +235,18 @@ namespace FLAccountDB.NoSQL
             Logger.LogDisp.NewMessage(LogType.Info, "Started player DB update...");
             var lastModTime = (DateTime)e.Argument;
             var len = _db.AccPath.Length + 12;
+
+
+            if (!Directory.Exists(_db.AccPath))
+            {
+                Logger.LogDisp.NewMessage(LogType.Error,"Can't find FL PlayerDB!");
+                _areReadyToClose.Set();
+                return;
+            }
+
             if (StateChanged != null)
                 StateChanged(DBStates.UpdatingFormFiles);
+
             // find all the newer savefiles, get the directory path, get unique directories
             // LINQ magic ;)
             var accDirs =
@@ -271,7 +280,6 @@ namespace FLAccountDB.NoSQL
                 if (_bgwUpdater.CancellationPending)
                 {
                     Logger.LogDisp.NewMessage(LogType.Info,"Update aborted.");
-                    _areReadyToClose.Reset();
                     _areReadyToClose.Set();
                     e.Cancel = true;
                     return;
@@ -285,6 +293,7 @@ namespace FLAccountDB.NoSQL
                     );
                 i++;
             }
+            _areReadyToClose.Set();
             Logger.LogDisp.NewMessage(LogType.Info, "Player DB update finished.");
         }
 
