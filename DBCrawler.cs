@@ -5,7 +5,6 @@ using System.Data.SQLite;
 using System.Globalization;
 using System.Linq;
 using FLAccountDB.Data;
-using FLAccountDB.LoginDB;
 using FLAccountDB.NoSQL;
 using LogDispatcher;
 
@@ -15,15 +14,13 @@ namespace FLAccountDB
     {
 
         private readonly SQLiteConnection _conn;
-        private readonly LoginDatabase _db;
         public event RequestReady GetFinish;
         public event EventHandler GetFinishWindow;
         public delegate void RequestReady(List<Metadata> meta);
 
-        public DBCrawler(SQLiteConnection conn,LoginDatabase db)
+        public DBCrawler(SQLiteConnection conn)
         {
             _conn = conn;
-            _db = db;
         }
 
         public int GetScalar(string command)
@@ -46,8 +43,26 @@ namespace FLAccountDB
         private const string SelectGroupByName = "SELECT * FROM Accounts WHERE CharName LIKE '%@CharName%'";
         private const string SelectGroupByAccount = "SELECT * FROM Accounts WHERE AccID = '@AccID'";
         private const string SelectGroupBySystem = "SELECT * FROM Accounts WHERE Location LIKE '%@System%'";
+        private const string SelectGroupByBase = "SELECT * FROM Accounts WHERE Base LIKE '%@Base%'";
         private const string SelectGroupByItem = "SELECT * FROM Accounts WHERE Equipment LIKE '%@Equip%'";
         private const string SelectGroupByCharCode = "SELECT * FROM Accounts WHERE CharCode = '@CharCode'";
+        private const string SelectAdmins = "SELECT * FROM Accounts WHERE IsAdmin = '1'";
+
+        private const string SelectIDbyIP = "select distinct " +
+                                            "A.* " +
+                                            "from " +
+                                            "Accounts A " +
+                                            "inner join LoginIP B " +
+                                            "on A.AccID = B.AccID " +
+                                            "where " +
+                                            "B.IP like '@IP' ";
+
+        private const string SelectBans = "select distinct " +
+                                    "A.* " +
+                                    "from " +
+                                    "Accounts A " +
+                                    "inner join Bans B " +
+                                    "on A.AccID = B.AccID ";
 
         public void GetAccountChars(string accID)
         {
@@ -67,32 +82,31 @@ namespace FLAccountDB
 
         public void GetAccountsByIP(string ip)
         {
-            //accID = EscapeString(accID);
-
-            _db.IPDataReady.Add((sender, e) =>
-            {
-                var remdoubles = ((List<IPData>)sender).GroupBy(x => x.AccID).Select(y => y.First());
-                var ret = new List<Metadata>();
-                foreach (var id in remdoubles)
+            BackgroundRequest.MetaDataReady.Add(
+                (sender, e) =>
                 {
-                    ret.AddRange(
-                        BackgroundRequest.GetMetaForeground(
-                        SelectGroupByAccount.Replace("@AccID", id.AccID),
-                        _conn));
-                }
+                    if (GetFinish != null)
+                        GetFinish((List<Metadata>)sender);
+                    if (GetFinishWindow != null)
+                        GetFinishWindow(null, null);
+                });
+            BackgroundRequest.GetMetas(_conn, SelectIDbyIP.Replace("@IP", ip));
 
-                if (GetFinish != null)
-                    GetFinish(ret);
-                if (GetFinishWindow != null)
-                    GetFinishWindow(null, null);
-
-            }
-                );
-
-            _db.GetAccIdbyIP(ip);
-            //return GetMeta();
         }
 
+        public void GetBanned()
+        {
+            BackgroundRequest.MetaDataReady.Add(
+                (sender, e) =>
+                {
+                    if (GetFinish != null)
+                        GetFinish((List<Metadata>)sender);
+                    if (GetFinishWindow != null)
+                        GetFinishWindow(null, null);
+                });
+            BackgroundRequest.GetMetas(_conn, SelectBans);
+
+        }
 
         public void GetMetasByItem(uint hash)
         {
@@ -158,6 +172,20 @@ namespace FLAccountDB
             //return GetMeta();
         }
 
+        public void GetMetasOfAdmins()
+        {
+            BackgroundRequest.MetaDataReady.Add(
+                (sender, e) =>
+                {
+                    if (GetFinish != null)
+                        GetFinish((List<Metadata>)sender);
+                    if (GetFinishWindow != null)
+                        GetFinishWindow(null, null);
+                });
+            BackgroundRequest.GetMetas(_conn, SelectAdmins);
+            //return GetMeta();
+        }
+
         public void GetMetasBySystem(string system)
         {
             system = NoSQLDB.EscapeString(system);
@@ -170,6 +198,21 @@ namespace FLAccountDB
                         GetFinishWindow(null, null);
                 });
             BackgroundRequest.GetMetas(_conn, SelectGroupBySystem.Replace("@System", system));
+        }
+
+
+        public void GetMetasByBase(string baseNick)
+        {
+            baseNick = NoSQLDB.EscapeString(baseNick);
+            BackgroundRequest.MetaDataReady.Add(
+                (sender, e) =>
+                {
+                    if (GetFinish != null)
+                        GetFinish((List<Metadata>)sender);
+                    if (GetFinishWindow != null)
+                        GetFinishWindow(null, null);
+                });
+            BackgroundRequest.GetMetas(_conn, SelectGroupByBase.Replace("@Base", baseNick));
         }
 
         public int CountRows(string table)

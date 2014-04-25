@@ -11,7 +11,10 @@ namespace FLAccountDB
 
         public static Character GetCharacter(this Metadata md, string pathToAccDir,LogDispatcher.LogDispatcher log)
         {
-            return AccountRetriever.GetAccount(Path.Combine(pathToAccDir, md.CharPath + ".fl"),log);
+            var acc = AccountRetriever.GetAccount(Path.Combine(pathToAccDir, md.CharPath + ".fl"),log);
+            //TODO: get it outta here, FOS
+            acc.AdminRights = Scanner.IsAdmin(Path.Combine(pathToAccDir, md.AccountID));
+            return acc;
         }
 
         public static bool SaveCharacter(this Character ch, string pathToAccDir, LogDispatcher.LogDispatcher log)

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FLAccountDB.Data;
+using FLDataFile;
 using LogDispatcher;
 
 namespace FLAccountDB.NoSQL
@@ -189,9 +190,7 @@ namespace FLAccountDB.NoSQL
         }
         #endregion
 
-        private const string InsertText = "INSERT INTO Accounts "
-    + "(CharPath,CharName,AccID,CharCode,Money,Rank,Ship,Location,Base,Equipment,Created,LastOnline) "
-    + "VALUES(@CharPath,@CharName,@AccID,@CharCode,@Money,@Rank,@Ship,@Location,@Base,@Equipment,@Created,@LastOnline)";
+        
 
         #region "UpdateDB"
 
@@ -279,8 +278,8 @@ namespace FLAccountDB.NoSQL
             {
                 if (_bgwUpdater.CancellationPending)
                 {
-                    Logger.LogDisp.NewMessage(LogType.Info,"Update aborted.");
                     _areReadyToClose.Set();
+                    Logger.LogDisp.NewMessage(LogType.Info,"Update aborted.");
                     e.Cancel = true;
                     return;
                 }
@@ -320,6 +319,9 @@ namespace FLAccountDB.NoSQL
         {
             //var accountID = AccountRetriever.GetAccountID(path);
             var accountID = path.Substring(path.Length - 11);
+            var isAdmin = IsAdmin(path);
+
+
             var charFiles = Directory.GetFiles(path, "??-????????.fl");
 
             var dbChars = GetCharCodesByAccount(accountID);
@@ -341,11 +343,20 @@ namespace FLAccountDB.NoSQL
                 _db.LoginDB.AddIds(accountID, cred.Item3, cred.Item4);
             }
 
+
+            if (File.Exists(path + @"/banned"))
+            {
+                _db.Bans.AddBan(accountID, 
+                    File.ReadAllText(path + @"/banned"), 
+                    File.GetLastWriteTime(path + @"/banned"),
+                    DateTime.Now.AddDays(1000));
+            }
  
-                foreach (var md in charFiles.Select(w => AccountRetriever.GetAccount(w,Logger.LogDisp)).Where(md => md != null))
+            foreach (var md in charFiles.Select(w => AccountRetriever.GetAccount(w,Logger.LogDisp)).Where(md => md != null))
                 {
                     var args = new CancelEventArgs();
                     var mdNew = md;
+                    mdNew.AdminRights = isAdmin;
                     if (AccountScanned != null)
                     {
                         //TODO: ugly,ugly, readonly foreach
@@ -373,6 +384,18 @@ namespace FLAccountDB.NoSQL
                 _db.RemoveAccountFromDB(accountID, acc.Substring(12));
         }
 
+        public static string IsAdmin(string path)
+        {
+            if (!File.Exists(path + @"/flhookadmin.ini")) return "";
+            var tmp = new DataFile(path + @"/flhookadmin.ini");
+
+            return tmp.GetSetting("admin", "rights")[0];
+        }
+
+
+        private const string InsertText = "INSERT INTO Accounts "
+    + "(CharPath,CharName,AccID,CharCode,Money,Rank,Ship,Location,Base,Equipment,Created,LastOnline,OnLineTime,IsAdmin) "
+    + "VALUES(@CharPath,@CharName,@AccID,@CharCode,@Money,@Rank,@Ship,@Location,@Base,@Equipment,@Created,@LastOnline,@OnLineTime,@IsAdmin)";
 
         private void AddMetadata(Character md, string accountID)
         {
@@ -390,6 +413,8 @@ namespace FLAccountDB.NoSQL
                 comm.Parameters.AddWithValue("@Equipment", md.Equipment);
                 comm.Parameters.AddWithValue("@Created", DateTime.Now);
                 comm.Parameters.AddWithValue("@LastOnline", md.LastOnline);
+                comm.Parameters.AddWithValue("@OnLineTime", md.OnlineTime);
+                comm.Parameters.AddWithValue("@IsAdmin", md.AdminRights != "");
                 if (_db.Queue != null)
                     _db.Queue.Execute(comm);
             }
@@ -440,7 +465,7 @@ namespace FLAccountDB.NoSQL
                         (ip, accessTime, loginID, loginID2)
                         );
                 //TODO: should we?
-                File.Delete(loginFilePath);
+                //File.Delete(loginFilePath);
             }
             return ret;
         }

@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BackgroundRequest.cs" />
+    <Compile Include="BanDB.cs" />
     <Compile Include="DBQueue.cs" />
     <Compile Include="DBStates.cs" />
     <Compile Include="IDatabase.cs" />

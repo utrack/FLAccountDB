@@ -11,10 +11,12 @@ namespace FLAccountDB.Data
     {
         private static readonly NumberFormatInfo Nfi = new NumberFormatInfo
         {NumberDecimalSeparator = "."};
+
         /// <summary>
         /// Returns a Player object associated with the charfile.
         /// </summary>
         /// <param name="path"></param>
+        /// <param name="log"></param>
         /// <returns></returns>
         public static Character GetAccount(string path,LogDispatcher.LogDispatcher log)
         {
@@ -133,6 +135,9 @@ namespace FLAccountDB.Data
                     case "base_visited":
                         player.VisitedBases.Add(uint.Parse(set[0]));
                         break;
+                    case "total_time_played":
+                        player.OnlineTime = Convert.ToUInt32(float.Parse(set[0], Nfi));
+                        break;
                 }
             }
 
@@ -143,8 +148,6 @@ namespace FLAccountDB.Data
             return player;
         }
 
-
-        //private static StringBuilder _equipList = new StringBuilder();
         /// <summary>
         /// Returns a Player object associated with the charfile.
         /// </summary>

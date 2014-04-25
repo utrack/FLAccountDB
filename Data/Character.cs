@@ -20,7 +20,7 @@ namespace FLAccountDB.Data
 
     public class Character : Metadata
     {
-        public bool IsAdmin;
+        public string AdminRights;
         public bool IsBanned;
         public bool IsOnline;
         public List<ReputationItem> Reputation = new List<ReputationItem>();
@@ -52,7 +52,7 @@ namespace FLAccountDB.Data
         public string LastBase;
         public float[] Position;
         public float[] Rotation;
-
+        public UInt32 OnlineTime;
         new public string Equipment
         {
             get

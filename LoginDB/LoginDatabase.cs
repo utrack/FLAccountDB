@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data;
 using System.Data.SQLite;
 using LogDispatcher;
 
@@ -65,7 +63,11 @@ namespace FLAccountDB.LoginDB
             BackgroundRequest.GetIPData(_conn,SelectIPbyID.Replace("@AccID", accID));
         }
 
+
+
         private const string SelectIDbyIP = "SELECT * FROM LoginIP WHERE IP = '@IP'";
+        
+        
         public void GetAccIdbyIP(string ip)
         {
             BackgroundRequest.IPDataReady.Add((sender, e) => OnIPReady(sender, null));

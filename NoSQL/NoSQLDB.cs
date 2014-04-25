@@ -18,7 +18,7 @@ namespace FLAccountDB.NoSQL
         public readonly DBQueue Queue;
 
         public readonly LoginDatabase LoginDB;
-
+        public readonly BanDB Bans;
         public readonly string AccPath;
         public bool ClosePending;
 
@@ -78,7 +78,9 @@ namespace FLAccountDB.NoSQL
          Base TEXT,
          Equipment TEXT,
          Created DATETIME,
-         LastOnline DATETIME
+         LastOnline DATETIME,
+         OnLineTime INTEGER,
+         IsAdmin INTEGER NOT NULL
 );";
                     createDataBase.ExecuteNonQuery();
 
@@ -86,19 +88,29 @@ namespace FLAccountDB.NoSQL
                     createDataBase.CommandText = @"CREATE TABLE LoginIP(
          AccID TEXT NOT NULL,
          IP TEXT NOT NULL,
-         LogTime DATETIME NOT NULL
+         LogTime DATETIME NOT NULL,
+         PRIMARY KEY (AccID, IP) ON CONFLICT REPLACE
 );";
                     createDataBase.ExecuteNonQuery();
 
                     createDataBase.CommandText = @"CREATE TABLE LoginID(
          AccID TEXT NOT NULL,
          ID1 TEXT NOT NULL,
-         ID2 DATETIME NOT NULL
+         ID2 TEXT NOT NULL
+);";
+                    createDataBase.ExecuteNonQuery();
+
+                    createDataBase.CommandText = @"CREATE TABLE Bans(
+         AccID TEXT NOT NULL PRIMARY KEY ON CONFLICT REPLACE,
+         Reason TEXT NOT NULL,
+         DateStarting DATETIME NOT NULL,
+         DateFinishing DATETIME NOT NULL
 );";
                     createDataBase.ExecuteNonQuery();
 
                     createDataBase.CommandText = "CREATE INDEX AccLookup ON LoginIP(AccID ASC);";
                     createDataBase.ExecuteNonQuery();
+
                     createDataBase.CommandText = "CREATE INDEX CharLookup ON Accounts(CharName ASC);";
                     createDataBase.ExecuteNonQuery();
 
@@ -113,13 +125,17 @@ namespace FLAccountDB.NoSQL
             _conn.ConnectionString = cs.ToString();
             _conn.Open();
             Logger.LogDisp.NewMessage(LogType.Info, "NoSQLDB: Connected.");
-            Queue = new DBQueue(_conn,  "NoSQLDB");
+
+
+            Queue = new DBQueue(_conn,  "NoSQLDB.Main");
 
             LoginDB = new LoginDatabase( _conn, Queue);
+            Bans = new BanDB(this,Queue);
+
 
             Scan = new Scanner(_conn,this);
 
-            Retriever = new DBCrawler(_conn,LoginDB);
+            Retriever = new DBCrawler(_conn);
 
             Scan.StateChanged += Scan_StateChanged;
 
@@ -186,15 +202,5 @@ namespace FLAccountDB.NoSQL
             File.Delete(path);
             return true;
         }
-
-
-        
-
-        #region "Properties"
-        public int PendingWrites
-        {
-            get { return Queue.Count; }
-        }
-        #endregion
     }
 }
