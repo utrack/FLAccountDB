@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
+using FLAccountDB.Data;
 using FLDataFile;
 using LogDispatcher;
 
-namespace FLAccountDB.Data
+namespace FLAccountDB.NoSQL
 {
-    static class AccountRetriever
+    public class AccountRetriever
     {
         private static readonly NumberFormatInfo Nfi = new NumberFormatInfo
         {NumberDecimalSeparator = "."};
@@ -20,6 +22,7 @@ namespace FLAccountDB.Data
         /// <returns></returns>
         public static Character GetAccount(string path,LogDispatcher.LogDispatcher log)
         {
+            if (!File.Exists(path)) return null;
             var flFile = new DataFile(path);
             var player = new Character
             {

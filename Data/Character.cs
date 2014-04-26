@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using FLAccountDB.NoSQL;
 
 namespace FLAccountDB.Data
 {
@@ -21,7 +19,6 @@ namespace FLAccountDB.Data
     public class Character : Metadata
     {
         public string AdminRights;
-        public bool IsBanned;
         public bool IsOnline;
         public List<ReputationItem> Reputation = new List<ReputationItem>();
         //Dictionary<string, float>
@@ -59,12 +56,6 @@ namespace FLAccountDB.Data
             {
                 return String.Join(" ", EquipmentList.Select(w => w.Item1));
             }
-        }
-
-
-        public static Character ParseCharacter(string path, LogDispatcher.LogDispatcher log)
-        {
-            return AccountRetriever.GetAccount(path,log);
         }
     }
 }

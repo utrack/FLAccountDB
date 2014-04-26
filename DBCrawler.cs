@@ -39,13 +39,17 @@ namespace FLAccountDB
         }
 
 
-        private const string SelectGroupByNames = "SELECT * FROM Accounts WHERE CharName IN (@CharNames)";
-        private const string SelectGroupByName = "SELECT * FROM Accounts WHERE CharName LIKE '%@CharName%'";
-        private const string SelectGroupByAccount = "SELECT * FROM Accounts WHERE AccID = '@AccID'";
-        private const string SelectGroupBySystem = "SELECT * FROM Accounts WHERE Location LIKE '%@System%'";
-        private const string SelectGroupByBase = "SELECT * FROM Accounts WHERE Base LIKE '%@Base%'";
-        private const string SelectGroupByItem = "SELECT * FROM Accounts WHERE Equipment LIKE '%@Equip%'";
-        private const string SelectGroupByCharCode = "SELECT * FROM Accounts WHERE CharCode = '@CharCode'";
+        private const string SelectGroupByNames = "SELECT * FROM Accounts WHERE CharName IN (@CharNames);";
+        private const string SelectGroupByName = "SELECT * FROM Accounts WHERE CharName LIKE '%@CharName%';";
+
+        private const string SelectGroupByAccount = "SELECT * FROM Accounts WHERE AccID = '@AccID';";
+        private const string SelectDelGroupByAccount = "SELECT * FROM Accounts WHERE AccID = '@AccID'"+
+                                                 "UNION SELECT * FROM DelAccounts WHERE AccID = '@AccID';";
+
+        private const string SelectGroupBySystem = "SELECT * FROM Accounts WHERE Location LIKE '%@System%';";
+        private const string SelectGroupByBase = "SELECT * FROM Accounts WHERE Base LIKE '%@Base%';";
+        private const string SelectGroupByItem = "SELECT * FROM Accounts WHERE Equipment LIKE '%@Equip%';";
+        private const string SelectGroupByCharCode = "SELECT * FROM Accounts WHERE CharCode = '@CharCode';";
         private const string SelectAdmins = "SELECT * FROM Accounts WHERE IsAdmin = '1'";
 
         private const string SelectIDbyIP = "select distinct " +
@@ -57,14 +61,9 @@ namespace FLAccountDB
                                             "where " +
                                             "B.IP like '@IP' ";
 
-        private const string SelectBans = "select distinct " +
-                                    "A.* " +
-                                    "from " +
-                                    "Accounts A " +
-                                    "inner join Bans B " +
-                                    "on A.AccID = B.AccID ";
+        private const string SelectBans = "SELECT * FROM Accounts WHERE IsBanned = 1";
 
-        public void GetAccountChars(string accID)
+        public void GetAccountChars(string accID,bool searchDeleted = false)
         {
             accID = NoSQLDB.EscapeString(accID);
 
@@ -76,7 +75,10 @@ namespace FLAccountDB
                     if (GetFinishWindow != null)
                         GetFinishWindow(null, null);
                 });
-            BackgroundRequest.GetMetas(_conn, SelectGroupByAccount.Replace("@AccID", accID));
+            BackgroundRequest.GetMetas(_conn,
+                searchDeleted
+                    ? SelectDelGroupByAccount.Replace("@AccID", accID)
+                    : SelectGroupByAccount.Replace("@AccID", accID));
             //return GetMeta();
         }
 

@@ -11,7 +11,7 @@ namespace FLAccountDB.Data
 
         public byte Rank;
         public uint Money;
-
+        public bool IsBanned;
         public uint ShipArch;
         public string System;
         public string Base;

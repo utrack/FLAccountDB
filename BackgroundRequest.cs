@@ -121,6 +121,7 @@ namespace FLAccountDB
                     md.Base = reader.GetValue(8).ToString();
                     md.Equipment = reader.GetString(9);
                     md.LastOnline = reader.GetDateTime(11);
+                    md.IsBanned = reader.GetBoolean(14);
                     //};
 
                     ret.Add(md);

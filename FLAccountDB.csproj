@@ -57,7 +57,7 @@
     <Compile Include="LoginDB\LoginDatabase.cs" />
     <Compile Include="MetadataExtensions.cs" />
     <Compile Include="NoSQL\NoSQLDB.cs" />
-    <Compile Include="Data\AccountRetriever.cs" />
+    <Compile Include="NoSQL\AccountRetriever.cs" />
     <Compile Include="Data\Metadata.cs" />
     <Compile Include="Data\Character.cs" />
     <Compile Include="NoSQL\Scanner.cs" />

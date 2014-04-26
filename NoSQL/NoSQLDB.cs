@@ -31,6 +31,25 @@ namespace FLAccountDB.NoSQL
         public readonly DBCrawler Retriever;
         #region "Database initiation"
 
+
+        private const string CreateDBString = @"CREATE TABLE @Table(
+         CharPath TEXT PRIMARY KEY ON CONFLICT REPLACE,
+         CharName TEXT NOT NULL,
+         AccID TEXT NOT NULL,
+         CharCode TEXT NOT NULL,
+         Money INTEGER NOT NULL,
+         Rank INTEGER,
+         Ship INTEGER,
+         Location TEXT NOT NULL,
+         Base TEXT,
+         Equipment TEXT,
+         Created DATETIME,
+         LastOnline DATETIME,
+         OnLineTime INTEGER,
+         IsAdmin INTEGER NOT NULL,
+         IsBanned INTEGER NOT NULL
+);";
+
         /// <summary>
         /// Initiate the legacy NoSQL Freelancer storage.
         /// </summary>
@@ -66,23 +85,11 @@ namespace FLAccountDB.NoSQL
  
                     // Create data base structure
                     var createDataBase = _conn.CreateCommand();    // Useful method
-                        createDataBase.CommandText = @"CREATE TABLE Accounts(
-         CharPath TEXT PRIMARY KEY ON CONFLICT REPLACE,
-         CharName TEXT NOT NULL,
-         AccID TEXT NOT NULL,
-         CharCode TEXT NOT NULL,
-         Money INTEGER NOT NULL,
-         Rank INTEGER,
-         Ship INTEGER,
-         Location TEXT NOT NULL,
-         Base TEXT,
-         Equipment TEXT,
-         Created DATETIME,
-         LastOnline DATETIME,
-         OnLineTime INTEGER,
-         IsAdmin INTEGER NOT NULL
-);";
-                    createDataBase.ExecuteNonQuery();
+                createDataBase.CommandText = CreateDBString.Replace("@Table", "Accounts");
+                createDataBase.ExecuteNonQuery();
+
+                createDataBase.CommandText = CreateDBString.Replace("@Table", "DelAccounts");
+                createDataBase.ExecuteNonQuery();
 
 
                     createDataBase.CommandText = @"CREATE TABLE LoginIP(
@@ -177,25 +184,48 @@ namespace FLAccountDB.NoSQL
         }
 
         
-
+        /// <summary>
+        /// Removes account from metadata DB.
+        /// </summary>
+        /// <param name="accID"></param>
+        /// <param name="charID"></param>
         public void RemoveAccountFromDB(string accID, string charID)
         {
             accID = EscapeString(accID);
             charID = EscapeString(charID);
+
+
+            using (var cmd = new SQLiteCommand(
+            "INSERT INTO DelAccounts SELECT * FROM Accounts WHERE AccID = @AccID And CharCode = @CharCode",
+            _conn))
+            {
+                cmd.Parameters.AddWithValue("@AccID", accID);
+                cmd.Parameters.AddWithValue("@CharCode", charID);
+                Queue.Execute(cmd);
+            } 
+
             using (var cmd = new SQLiteCommand(
                 "DELETE FROM Accounts WHERE AccID = @AccID And CharCode = @CharCode",
                 _conn))
             {
                 cmd.Parameters.AddWithValue("@AccID", accID);
                 cmd.Parameters.AddWithValue("@CharCode", charID);
+
                 Queue.Execute(cmd);
             } 
         }
 
-        public bool RemoveAccount(Metadata md)
+        /// <summary>
+        /// Removes account from both metadata DB and game DB.
+        /// </summary>
+        /// <param name="charPath"></param>
+        /// <param name="accID"></param>
+        /// <param name="charID"></param>
+        /// <returns></returns>
+        public bool RemoveAccount(string charPath,string accID, string charID)
         {
-            RemoveAccountFromDB(md.AccountID,md.CharID);
-            var path = Path.Combine(AccPath, md.CharPath);
+            RemoveAccountFromDB(accID,charID);
+            var path = Path.Combine(AccPath, charPath + @".fl");
 
             if (!File.Exists(path)) return false;
 
