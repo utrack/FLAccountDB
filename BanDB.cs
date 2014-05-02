@@ -9,7 +9,7 @@ namespace FLAccountDB
     public class BanDB
     {
 
-        private NoSQLDB _db;
+        private readonly NoSQLDB _db;
         private readonly DBQueue _queue;
         public BanDB(NoSQLDB db,DBQueue queue)
         {
