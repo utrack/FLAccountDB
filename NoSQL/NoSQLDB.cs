@@ -17,7 +17,10 @@ namespace FLAccountDB.NoSQL
         public readonly DBQueue Queue;
 
         public readonly LoginDatabase LoginDB;
+
         public readonly BanDB Bans;
+        public readonly IniBan BansID;
+        public readonly IniBan BansIP;
         public readonly string AccPath;
         public bool ClosePending;
 
@@ -136,8 +139,11 @@ namespace FLAccountDB.NoSQL
             Queue = new DBQueue(_conn,  "NoSQLDB.Main");
 
             LoginDB = new LoginDatabase( _conn, Queue);
-            Bans = new BanDB(this,Queue);
 
+            Bans = new BanDB(this);
+            //TODO: might need to use non-hardcoded paths
+            BansID = new IniBan(accPath + @"\loginidbans.ini");
+            BansIP = new IniBan(accPath + @"\ipbans.ini");
 
             Scan = new Scanner(_conn,this);
 
@@ -186,20 +192,20 @@ namespace FLAccountDB.NoSQL
         /// <summary>
         /// Removes account from metadata DB.
         /// </summary>
-        /// <param name="accID"></param>
-        /// <param name="charID"></param>
-        public void RemoveAccountFromDB(string accID, string charID)
+        /// <param name="accId"></param>
+        /// <param name="charId"></param>
+        public void RemoveAccountFromDB(string accId, string charId)
         {
-            accID = EscapeString(accID);
-            charID = EscapeString(charID);
+            accId = EscapeString(accId);
+            charId = EscapeString(charId);
 
 
             using (var cmd = new SQLiteCommand(
             "INSERT INTO DelAccounts SELECT * FROM Accounts WHERE AccID = @AccID And CharCode = @CharCode",
             _conn))
             {
-                cmd.Parameters.AddWithValue("@AccID", accID);
-                cmd.Parameters.AddWithValue("@CharCode", charID);
+                cmd.Parameters.AddWithValue("@AccID", accId);
+                cmd.Parameters.AddWithValue("@CharCode", charId);
                 Queue.Execute(cmd);
             } 
 
@@ -207,8 +213,8 @@ namespace FLAccountDB.NoSQL
                 "DELETE FROM Accounts WHERE AccID = @AccID And CharCode = @CharCode",
                 _conn))
             {
-                cmd.Parameters.AddWithValue("@AccID", accID);
-                cmd.Parameters.AddWithValue("@CharCode", charID);
+                cmd.Parameters.AddWithValue("@AccID", accId);
+                cmd.Parameters.AddWithValue("@CharCode", charId);
 
                 Queue.Execute(cmd);
             } 
@@ -218,12 +224,12 @@ namespace FLAccountDB.NoSQL
         /// Removes account from both metadata DB and game DB.
         /// </summary>
         /// <param name="charPath"></param>
-        /// <param name="accID"></param>
-        /// <param name="charID"></param>
+        /// <param name="accId"></param>
+        /// <param name="charId"></param>
         /// <returns></returns>
-        public bool RemoveAccount(string charPath,string accID, string charID)
+        public bool RemoveAccount(string charPath,string accId, string charId)
         {
-            RemoveAccountFromDB(accID,charID);
+            RemoveAccountFromDB(accId,charId);
             var path = Path.Combine(AccPath, charPath + @".fl");
 
             if (!File.Exists(path)) return false;

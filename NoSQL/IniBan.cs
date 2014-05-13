@@ -6,7 +6,7 @@ using FLDataFile;
 
 namespace FLAccountDB.NoSQL
 {
-    class IniBan
+    public class IniBan
     {
         public List<WTuple<string, string>> Bans
         {
@@ -14,8 +14,10 @@ namespace FLAccountDB.NoSQL
         }
 
         private readonly DataFile _file;
+        private readonly string _filePath;
         public IniBan(string path)
         {
+            _filePath = path;
             Bans = new List<WTuple<string, string>>();
 
             if (!File.Exists(path))
@@ -31,8 +33,8 @@ namespace FLAccountDB.NoSQL
             {
                 Bans.Add(
                     new WTuple<string, string>(
-                        set[0],
-                        String.Join(", ",set.Skip(1))
+                        set.Name,
+                        String.Join(", ",set)
                         )
                         );
             }
@@ -50,6 +52,8 @@ namespace FLAccountDB.NoSQL
             Bans.Add(new WTuple<string, string>(ident,reason));
             _file.Sections.First(w=>w.Name == "bans").Settings.Add(
                 new Setting(reason,ident));
+
+            _file.Save(_filePath);
         }
 
         public void RemoveBan(string ident)
@@ -59,6 +63,8 @@ namespace FLAccountDB.NoSQL
 
             set.Comments = set[0] + " = " + String.Join(", ", set.Skip(1));
             set.Clear();
+
+            _file.Save(_filePath);
         }
 
     }

@@ -11,8 +11,9 @@ namespace FLAccountDB.LoginDB
 
         //readonly OneShotHandlerQueue<EventArgs> _evQueue = new OneShotHandlerQueue<EventArgs>();
         public readonly OneShotHandlerQueue<EventArgs> IPDataReady = new OneShotHandlerQueue<EventArgs>();
-
+        public readonly OneShotHandlerQueue<EventArgs> IDDataReady = new OneShotHandlerQueue<EventArgs>();
         private event EventHandler OnIPReady;
+        private event EventHandler OnIDReady;
 
         public LoginDatabase( SQLiteConnection conn,DBQueue queue)
         {
@@ -20,6 +21,7 @@ namespace FLAccountDB.LoginDB
             _conn = conn;
             //BackgroundRequest.IPReady += _evQueue.Handle;
             OnIPReady += IPDataReady.Handle;
+            OnIDReady += IDDataReady.Handle;
             Logger.LogDisp.NewMessage(LogType.Info,"Login DB initialized.");
         }
 
@@ -63,7 +65,12 @@ namespace FLAccountDB.LoginDB
             BackgroundRequest.GetIPData(_conn,SelectIPbyID.Replace("@AccID", accID));
         }
 
-
+        private const string SelectIDbyID = "SELECT * FROM LoginID WHERE AccID = '@AccID'";
+        public void GetIDByAccID(string accID)
+        {
+            BackgroundRequest.IDDataReady.Add((sender, e) => OnIDReady(sender, null));
+            BackgroundRequest.GetIDData(_conn, SelectIDbyID.Replace("@AccID", accID));
+        }
 
         private const string SelectIDbyIP = "SELECT * FROM LoginIP WHERE IP = '@IP'";
         
